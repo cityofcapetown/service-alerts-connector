@@ -238,6 +238,32 @@ components:
           type: string
           description: Type of service affected
           example: "Water & Sanitation"
+          enum:
+            - Business Queries
+            - City Health
+            - Creditors Accounts Payable
+            - Development Management
+            - Drivers Licence Enquiries
+            - Economic Development
+            - Electricity
+            - Events
+            - General Documents
+            - General enquiries
+            - Meter Readings
+            - Motor Vehicle Registration
+            - Ombudsman
+            - Parks
+            - Points of Distribution
+            - Refuse
+            - Revenue
+            - Roads & Stormwater
+            - Roads & Transport
+            - Supply Chain Management
+            - Tourism
+            - Traffic
+            - Valuations
+            - Water & Sanitation
+            - Water Management
         title:
           type: string
           description: Title of service alert
