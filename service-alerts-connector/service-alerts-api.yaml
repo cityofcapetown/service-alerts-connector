@@ -1,0 +1,329 @@
+openapi: 3.1.0
+info:
+  title: Service Alerts API
+  description: Data API for service outage alerts. Hosted in the cloud, behind a CDN, so feel free to query as frequently as required.
+  version: 1.0.0
+  contact:
+    name: Gordon Inggs
+    email: gordon.inggs@capetown.gov.za
+externalDocs:
+  description: Code repository
+  url: 'https://github.com/cityofcapetown/service-alerts-connector'
+servers:
+  - description: "Prod endpoint"
+    url: https://service-alerts.cct-datascience.xyz
+tags:
+  - name: "v0"
+    description: "Initial version of API"
+  - name: "v1"
+    description: "Second version of API with AI-generated social media post fields"
+
+paths:
+  /coct-service_alerts-current-unplanned.json:
+    get:
+      tags:
+        - "v0"
+      deprecated: true
+      summary: Current unplanned outages
+      description: Get all currently active unplanned service outages
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ServiceAlertV0'
+  /coct-service_alerts-current-planned.json:
+    get:
+      tags:
+        - "v0"
+      deprecated: true
+      summary: Current planned outages
+      description: Get all currently active planned service outages
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ServiceAlertV0'
+  /coct-service_alerts-7days-unplanned.json:
+    get:
+      tags:
+        - "v0"
+      deprecated: true
+      summary: Unplanned outages for Last 7 Days
+      description: Get all unplanned service outages active over the last 7 days
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ServiceAlertV0'
+  /coct-service_alerts-7days-planned.json:
+    get:
+      tags:
+        - "v0"
+      deprecated: true
+      summary: Planned Outages for Last 7 Days
+      description: Get all planned service outages active in the last 7 days
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ServiceAlertV0'
+  /coct-service_alerts-all-unplanned.json:
+    get:
+      tags:
+        - "v0"
+      deprecated: true
+      summary: All unplanned outages
+      description: Get all unplanned service outages going back several years
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ServiceAlertV0'
+  /coct-service_alerts-all-planned.json:
+    get:
+      tags:
+        - "v0"
+      deprecated: true
+      summary: All planned outages
+      description: Get all planned service outages going back several years
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ServiceAlertV0'
+  /v1/coct-service_alerts-current-unplanned.json:
+    get:
+      tags:
+        - "v1"
+      summary: Current unplanned outages
+      description: Get all currently active unplanned service outages with social media fields
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ServiceAlertV1'
+  /v1/coct-service_alerts-current-planned.json:
+    get:
+      tags:
+        - "v1"
+      summary: Current planned outages
+      description: Get all currently active planned service outages with social media fields
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ServiceAlertV0'
+  /v1/coct-service_alerts-7days-unplanned.json:
+    get:
+      tags:
+        - "v1"
+      summary: Unplanned outages for Last 7 Days
+      description: Get all unplanned service outages active over the last 7 days with social media fields
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ServiceAlertV0'
+  /v1/coct-service_alerts-7days-planned.json:
+    get:
+      tags:
+        - "v1"
+      summary: Planned Outages for Last 7 Days
+      description: Get all planned service outages active in the last 7 days with social media fields
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ServiceAlertV0'
+  /v1/coct-service_alerts-all-unplanned.json:
+    get:
+      tags:
+        - "v1"
+      summary: All unplanned outages
+      description: Get all unplanned service outages going back several years with social media fields.
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ServiceAlertV1'
+  /v1/coct-service_alerts-all-planned.json:
+    get:
+      tags:
+        - "v1"
+      summary: All planned outages
+      description: Get all planned service outages going back several years with social media fields.
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ServiceAlertV1'
+  /v1/alerts/{alert_id}.json:
+    get:
+      tags:
+        - "v1"
+      summary: Get a specific service alert by ID
+      description: Retrieve detailed information about a service alert by its unique ID
+      parameters:
+        - name: alert_id
+          in: path
+          description: ID of the service alert to retrieve
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ServiceAlertV1'
+components:
+  schemas:
+    ServiceAlertV0:
+      type: object
+      properties:
+        Id:
+          type: integer
+          description: Unique identifier for service alert
+          example: 23128
+        service_area:
+          type: string
+          description: Type of service affected
+          example: "Water & Sanitation"
+          enum:
+            - Business Queries
+            - City Health
+            - Creditors Accounts Payable
+            - Development Management
+            - Drivers Licence Enquiries
+            - Economic Development
+            - Electricity
+            - Events
+            - General Documents
+            - General enquiries
+            - Meter Readings
+            - Motor Vehicle Registration
+            - Ombudsman
+            - Parks
+            - Points of Distribution
+            - Refuse
+            - Revenue
+            - Roads & Stormwater
+            - Roads & Transport
+            - Supply Chain Management
+            - Tourism
+            - Traffic
+            - Valuations
+            - Water & Sanitation
+            - Water Management
+        title:
+          type: string
+          description: Title of service alert
+          example: "Water Off"
+        description:
+          type: string
+          description: More detailed description of nature of outage, and its effects.
+          example: "Leak on Main"
+        area:
+          type: string
+          description: High level description of the area affected. Often the suburb.
+          example: "Sonkring"
+        location:
+          type: string
+          description: More fine-grained description of the area affected. Often the street address.
+          example: "Woudenberg street"
+        publish_date:
+          type: string
+          format: date-time
+          description: Date when service alert was created as ISO8601 timestamp. **NB** Uses UTC timestamp.
+          example: "2024-02-13T22:00:00.000Z"
+        effective_date:
+          type: string
+          format: date-time
+          description: Date when the service alert is applicable as ISO8601 timestamp. **NB** Uses UTC timestamp.
+          example: "2024-02-13T22:00:00.000Z"
+        expiry_date:
+          type: string
+          format: date-time
+          description: Date when the service alert should stop being considered valid as ISO8601 timestamp. **NB** Uses UTC timestamp.
+          example: "2024-02-14T22:00:00.000Z"
+        start_timestamp:
+          type: string
+          format: date-time
+          description: Timestamp when the issue that caused the alert started as ISO8601 timestamp. **NB** Uses UTC timestamp.
+          example: "2024-02-14T08:04:00.000Z"
+        forecast_end_timestamp:
+          type: string
+          format: date-time
+          description: Timestamp by when the issue that caused the alert is expected to be resolved.
+          example: "2024-02-14T14:00:00.000Z"
+        planned:
+          type: boolean
+          description: Whether the issue that caused the alert is part of routine maintenance or unexpected.
+          example: false
+        request_number:
+          type: string
+          description: Unique identifier for the service request associated with the issue. Should be cited if contacting the City of Cape Town.
+          example: "9116640606"
+
+    ServiceAlertV1:
+      allOf:
+        - $ref: '#/components/schemas/ServiceAlertV0'
+        - type: object
+          properties:
+            tweet_text:
+              type: string
+              description: 280 character or less summary of the service alert, formatted with social media in mind. Generated using wizardlm-13B LLM.
+              example: " 🚧Burst Pipe🚧\n📍Pinoak Avenue, Vredehoek\n⏰Feb 14, 6:35 PM - Feb 15, 12:35 AM\nUnexpected water outage due to burst pipe. For assistance, use request number 9116664427 when contacting the City."
+            toot_text:
+              type: string
+              description: 300 character or less summary of the service alert, formatted with social media in mind. Includes hashtags for the sake of indexing. Generated using wizardlm-13B LLM.
+              example: " 🚧Burst Pipe🚧\n📍Pinoak Avenue, Vredehoek\n⏰Feb 14, 6:35 PM - Feb 15, 12:35 AM\nUnexpected burst water issue. For assistance, contact City with request number 9116664427\n#CapeTown #Water&Sanitation"
