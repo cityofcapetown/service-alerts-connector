@@ -86,9 +86,9 @@ class ServiceAlertsBase:
         self.data = None
         self.cache_data = None
 
-    def get_data_from_minio(self, minio_read_name=None, use_disk_cache=False):
+    def get_data_from_minio(self, minio_read_name=None, data_size_limit=20):
         """
-        Gets the current SAP R3 data from Minio.
+        Gets the current Service Alert data from Minio.
 
         :return: Pandas dataframe of data currently in Minio
         """
@@ -101,7 +101,6 @@ class ServiceAlertsBase:
             minio_key=self.minio_read_access,
             minio_secret=self.minio_read_secret,
             data_classification=self.minio_read_classification,
-            use_cache=use_disk_cache,
         )
         logging.debug(f"data.columns={data.columns}")
 
@@ -132,18 +131,18 @@ class ServiceAlertsBase:
                 # The data in our dataset that *is not in* the cache - this is the data we want to work on
                 data_mask = ~(data_index.isin(cache_data_index))
 
-                logging.debug("new data size={}".format(data_mask.sum()))
-                logging.debug("cached data size={}".format(cache_mask.sum()))
+                logging.debug(f"new data size={data_mask.sum()}")
+                logging.debug(f"cached data size={cache_mask.sum()}")
 
                 # Splitting data accordingly
-                logging.debug("(pre-cache filter) data.shape={}".format(data.shape))
-                data = data[data_mask]
-                checksums = checksums[data_mask]
-                logging.debug("(post-cache filter) data.shape={}".format(data.shape))
+                logging.debug(f" (pre-cache filter) {data.shape=}")
+                data = data[data_mask].tail(data_size_limit)
+                checksums = checksums[data_mask].tail(data_size_limit)
+                logging.debug(f"(post-cache filter) {data.shape=}")
                 self.cache_data = self.cache_data[cache_mask]
 
             else:
-                logging.warn("Not using caching - no checksums in previous results")
+                logging.warning("Not using caching - no checksums in previous results")
                 del self.cache_data
                 self.use_cached_values = False
 
