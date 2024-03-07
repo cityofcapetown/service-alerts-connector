@@ -10,7 +10,7 @@ podTemplate(label: label, yaml: """
     spec:
       containers:
       - name: cct-datascience-python
-        image: cityofcapetown/datascience:python@sha256:ee64d1427e1906876d4c1dc426bdf1223dce7caf8c426a707be9f9c9d34af8b1
+        image: cityofcapetown/datascience:python@sha256:269abfbfd016f8b082c39bbe4e7d6a0850172ef88e7ddadb84ce4239329001e6
         imagePullPolicy: IfNotPresent
         command:
         - cat
