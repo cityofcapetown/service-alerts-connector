@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ email_subject }}</title>
+</head>
+<body>
+<table align="center" border="0" cellpadding="0" cellspacing="0" width="600">
+    <tr>
+        <td align="center" bgcolor="#f2f2f2">
+            <h1>{{ email_subject }}</h1>
+        </td>
+    </tr>
+    <tr>
+        <td>
+            <h2>Dear
+                {% if recipients|length > 1 %}
+                    {{ recipients[:-1]|join(', ') }} and {{ recipients[-1] }},
+                {% else %}
+                    {{ recipients[0] }}
+                {% endif %}
+            </h2>
+
+            <p> Below is a suggested social media post for a service alert logged on CRM's Body of Knowledge. Please
+                inspect the suggestion, and if you think it accurately captures the important information contained in
+                the alert, please post it to appropriate social media channels.
+            </p>
+        </td>
+    </tr>
+    <tr>
+        <td>
+            <h2>Service Alert Details</h2>
+            <table border="1" cellpadding="5" cellspacing="0">
+                {% for k,v in alert_dict.items() %}
+                    <tr>
+                        <td>{{ k|replace("_", " ")|title }}</td>
+                        <td>{{ v }}</td>
+                    </tr>
+                {% endfor %}
+                <tr>
+                    <td>BoK Link</td>
+                    <td><a href="{{ bok_link }}">Click Here</a></td>
+                </tr>
+            </table>
+
+        </td>
+    </tr>
+    <tr>
+        <td>
+            <h2>Suggested Post</h2>
+            <p style="background-color: #ffffcc; color: #000000; padding: 10px; border: 1px solid #000000; border-radius: 5px; font-weight: bold;">
+                <span style="margin-right: 10px; font-size: 20px;">⚠️</span>
+                DANGER. GEVAAR. INGOZI. The post below is generated from the above details automatically. The algorithm
+                used may have made errors, and so needs to be checked carefully.
+            </p>
+
+            <p style="font-size: 18px; color: #0000ff; font-weight: bold;">{{ post_text|replace("\n","<br>") }}</p>
+        </td>
+    </tr>
+    <tr>
+        <td>
+            <h2>Why am I receiving this email?</h2>
+            <p> You have been identified as someone that should be receiving suggestions for social media posts relating
+                to {{ email_focus }}. If you think that you are receiving this email in error, please reply to this
+                email,
+                explaining why you think this isn't correct, and my wranglers will correct me.
+            </p>
+        </td>
+    </tr>
+    <tr>
+        <td>
+            <h2>Something wrong with this email?</h2>
+            <p>
+                I am but a simple email robot - if anything in this automatically generated product doesn't
+                make any sense, or if you have any queries, suggestions or issues, please rather
+                <a href='mailto:gordon.inggs@capetown.gov.za,delyno.dutoit@capetown.gov.za'>contact</a>
+                the Data Science team.
+            </p>
+            <p>
+                My <a href="https://ds1.capetown.gov.za/ds_gitlab/OPM/sap-r3-connector">source code</a> is
+                also open for inspection and suggestions!
+            </p>
+            <p>
+                Sincerely, <br/>
+                <strong>The OPM Data Science Robot</strong> <br/>
+                <a href="http://www.capetown.gov.za/General/Contact-us">CCT Contacts</a> |
+                <a href="http://www.capetown.gov.za/General/Contact-us">CCT Media and News</a> |
+                <a href="https://eservices1.capetown.gov.za/coct/wapl/zsreq_app/index.html">Report a
+                    fault</a> |
+                <a href="mailto:accounts@capetown.gov.za">Account Queries</a> |
+                <a href="http://www.capetown.gov.za/Family%20and%20home/residential-utility-services/residential-water-and-sanitation-services/make-water-saving-a-way-of-life">Water
+                    Restrictions</a>
+            </p>
+            <p>
+                <img src="cid:rect_city_logo.png" style="width:230px;height:74px" width="230">
+            </p>
+
+            <p>
+                <small>Request ID: {{ request_id }} </small><br>
+                <small>Timestamp: {{ iso8601_timestamp }} </small>
+            </p>
+        </td>
+    </tr>
+</table>
+</body>
+</html>

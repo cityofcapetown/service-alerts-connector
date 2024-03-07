@@ -1,0 +1,100 @@
+#!/usr/bin/env groovy
+def label = "service-alerts-${UUID.randomUUID().toString()}"
+podTemplate(label: label, yaml: """
+    apiVersion: v1
+    kind: Pod
+    metadata:
+        name: ${label}
+    labels:
+        app: ${label}
+    spec:
+      containers:
+      - name: cct-datascience-python
+        image: cityofcapetown/datascience:python@sha256:ee64d1427e1906876d4c1dc426bdf1223dce7caf8c426a707be9f9c9d34af8b1
+        imagePullPolicy: IfNotPresent
+        command:
+        - cat
+        tty: true
+      nodeSelector:
+        workload: batch
+    """) {
+    node(label) {
+        stage('service-alerts setup') {
+            git credentialsId: 'jenkins-user', url: 'https://ds1.capetown.gov.za/ds_gitlab/OPM/service-alerts.git'
+            container('cct-datascience-python') {
+                    sh label: 'package_install', script: '''#!/usr/bin/env bash
+                        pip3 install --upgrade --no-cache-dir https://lake.capetown.gov.za/pipeline-utils/pipeline_utils-0.2-py2.py3-none-any.whl
+                        cd src/
+                        exit $?'''
+            }
+            updateGitlabCommitStatus name: 'setup', state: 'success'
+        }
+        stage('service-alerts build') {
+            container('cct-datascience-python') {
+                    sh label: 'package_script', script: '''#!/usr/bin/env bash
+                        file=service-alerts.zip
+                        zip -r $file ./cct_connector ./bin ./resources
+                        exit $?'''
+            }
+            updateGitlabCommitStatus name: 'build', state: 'success'
+        }
+        stage('service-alerts dags validate') {
+            container('cct-datascience-python') {
+                sh '''#!/usr/bin/env bash
+                  set -e
+                  for dag_file in $(ls dags/); do
+                    echo "Testing "$dag_file"..."
+                    python3 dags/"$dag_file"
+                  done
+                  '''
+            }
+            updateGitlabCommitStatus name: 'dags-validate', state: 'success'
+        }
+        stage('service-alerts dags commit') {
+            container('cct-datascience-python') {
+                withCredentials([usernamePassword(credentialsId: 'jenkins-user', passwordVariable: 'JENKINS_PASSWORD', usernameVariable: 'JENKINS_USERNAME')]) {
+                    sh label: 'dags_commit_script', script: '''#!/usr/bin/env bash
+                        current_commit=$(git rev-parse HEAD)
+
+                        git config --global credential.helper store
+                        echo "https://"$JENKINS_USERNAME":"$JENKINS_PASSWORD"@ds1.capetown.gov.za" > ~/.git-credentials
+
+                        cd ../..
+                        git clone -b v2 "https://ds1.capetown.gov.za/ds_gitlab/OPM/airflow-dags.git"
+                        cp service-alerts/src/dags/*.py airflow-dags/
+                        cd airflow-dags
+                        git add *
+                        git config --global user.email "opm.data@capetown.gov.za"
+                        git config --global user.name "JenkinsCI"
+                        git commit -a -m "Automated commit by service-alerts pipeline (https://ds1.capetown.gov.za/ds_gitlab/OPM/service-alerts-connector/commit/"$current_commit")"
+                        git push --set-upstream origin v2
+                        exit $?'''
+                }
+            }
+            updateGitlabCommitStatus name: 'dags-commit', state: 'success'
+        }
+        stage('service-alerts upload') {
+            container('cct-datascience-python') {
+                withCredentials([usernamePassword(credentialsId: 'minio-lake-credentials', passwordVariable: 'MINIO_SECRET', usernameVariable: 'MINIO_ACCESS')]) {
+                    sh label: 'upload_script', script: '''#!/usr/bin/env bash
+                        file=service-alerts.zip
+                        bucket=service-alerts.deploy
+                        resource="/${bucket}/${file}"
+                        contentType="application/octet-stream"
+                        dateValue=`date -R`
+                        stringToSign="PUT\\n\\n${contentType}\\n${dateValue}\\n${resource}"
+                        signature=$(echo -en ${stringToSign} | openssl sha1 -hmac ${MINIO_SECRET} -binary | base64)
+                        curl -v --fail \\
+                          -X PUT -T "${file}" \\
+                          -H "Host: lake.capetown.gov.za" \\
+                          -H "Date: ${dateValue}" \\
+                          -H "Content-Type: ${contentType}" \\
+                          -H "Authorization: AWS ${MINIO_ACCESS}:${signature}" \\
+                          https://lake.capetown.gov.za/${resource}
+                        exit $?'''
+                }
+            }
+            updateGitlabCommitStatus name: 'upload', state: 'success'
+        }
+    }
+}

@@ -1,1 +1,3 @@
 /dist/
+/src/resources/service-alert-connector-secrets.json
+/src/resources/service-alerts-connector-secrets.yaml
