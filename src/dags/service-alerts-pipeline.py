@@ -7,10 +7,10 @@ DAG_IMAGE = "cityofcapetown/datascience:python@sha256:ee64d1427e1906876d4c1dc426
 DAG_OWNER = kubernetes_dag.DagOwner('ginggs', 'gordon.inggs@capetown.gov.za')
 
 with kubernetes_dag.airflowK8sDAG("service-alerts-pipeline",
-                                  DAG_OWNER, secret_name='service-alerts-secret',
+                                  DAG_OWNER, secret_name='service-alerts-connector-secret',
                                   dag_image=DAG_IMAGE,
                                   start_date=DAG_STARTDATE, schedule_interval=timedelta(minutes=10),
-                                  code_location='https://lake.capetown.gov.za/service-alerts.deploy/service-alerts-connector.zip',
+                                  code_location='https://lake.capetown.gov.za/service-alerts-connector.deploy/service-alerts-connector.zip',
                                   concurrency=2) as dag:
     # Operators
     fetch_data_operator = dag.get_dag_operator("fetch-service-alerts",
