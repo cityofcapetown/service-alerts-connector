@@ -13,14 +13,6 @@ from cct_connector import (
 )
 
 
-# LLM Consts
-CPTGPT_ENDPOINT = "https://datascience.capetown.gov.za/cptgpt/v2/v1/chat/completions"
-DRAFTING_MODEL = "wizardlm-13b-q5"
-DRAFT_LIMIT = 1
-PROMPT_LENGTH_LIMIT = 2048
-DRAFT_TIMEOUT = 1200
-
-
 @dataclasses.dataclass
 class ServiceAlertOutputFileConfig:
     time_window_size: typing.Union[int, str, None]

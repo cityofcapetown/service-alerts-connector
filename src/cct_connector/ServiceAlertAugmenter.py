@@ -14,8 +14,16 @@ from cct_connector import ServiceAlertBase
 from cct_connector import (
     FIXED_SA_NAME, AUGMENTED_SA_NAME,
     AUGMENTER_SALT,
-    CPTGPT_ENDPOINT, DRAFTING_MODEL, TWEET_COL, TOOT_COL, DRAFT_LIMIT, PROMPT_LENGTH_LIMIT, DRAFT_TIMEOUT,
+    TWEET_COL, TOOT_COL,
 )
+
+
+# Internal LLM consts
+CPTGPT_ENDPOINT = "https://datascience.capetown.gov.za/cptgpt/v2/v1/chat/completions"
+DRAFTING_MODEL = "wizardlm-13b-q5"
+DRAFT_LIMIT = 1
+PROMPT_LENGTH_LIMIT = 2048
+DRAFT_TIMEOUT = 1200
 
 
 def _cptgpt_call_wrapper(message_dict: typing.Dict, http_session: requests.Session,
