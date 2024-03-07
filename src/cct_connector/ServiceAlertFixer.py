@@ -4,6 +4,7 @@ import re
 
 from db_utils import minio_utils
 import pandas as pd
+import pyarrow.dataset as ds
 
 from cct_connector import ServiceAlertBase
 from cct_connector import (
@@ -101,7 +102,7 @@ def _lookup_request_number(data_df: pd.DataFrame) -> pd.DataFrame:
     lookup_df = minio_utils.minio_to_dataframe(
         FIXED_SN_MINIO_NAME,
         columns=["ReferenceNumber"],
-        filters=(("ReferenceNumber", "not in", {None}),),
+        filters=ds.field("ReferenceNumber").is_valid(),
     ).dropna().rename(
         columns={"ReferenceNumber": "request_number"}
     )
