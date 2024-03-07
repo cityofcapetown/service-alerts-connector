@@ -10,7 +10,7 @@ with kubernetes_dag.airflowK8sDAG("service-alerts-pipeline",
                                   DAG_OWNER, secret_name='service-alerts-secret',
                                   dag_image=DAG_IMAGE,
                                   start_date=DAG_STARTDATE, schedule_interval=timedelta(minutes=10),
-                                  code_location='https://lake.capetown.gov.za/service-alerts.deploy/service-alerts.zip',
+                                  code_location='https://lake.capetown.gov.za/service-alerts.deploy/service-alerts-connector.zip',
                                   concurrency=2) as dag:
     # Operators
     fetch_data_operator = dag.get_dag_operator("fetch-service-alerts",

@@ -20,11 +20,10 @@ podTemplate(label: label, yaml: """
     """) {
     node(label) {
         stage('service-alerts setup') {
-            git credentialsId: 'jenkins-user', url: 'https://ds1.capetown.gov.za/ds_gitlab/OPM/service-alerts.git'
+            git credentialsId: 'jenkins-user', url: 'https://ds1.capetown.gov.za/ds_gitlab/ginggs/service-alerts-connector.git', branch: 'main'
             container('cct-datascience-python') {
                     sh label: 'package_install', script: '''#!/usr/bin/env bash
                         pip3 install --upgrade --no-cache-dir https://lake.capetown.gov.za/pipeline-utils/pipeline_utils-0.2-py2.py3-none-any.whl
-                        cd src/
                         exit $?'''
             }
             updateGitlabCommitStatus name: 'setup', state: 'success'
@@ -32,8 +31,9 @@ podTemplate(label: label, yaml: """
         stage('service-alerts build') {
             container('cct-datascience-python') {
                     sh label: 'package_script', script: '''#!/usr/bin/env bash
-                        file=service-alerts.zip
-                        zip -r $file ./cct_connector ./bin ./resources
+                        cd src/
+                        file=service-alerts-connector.zip
+                        zip -r $file ./cct_connector ./resources
                         exit $?'''
             }
             updateGitlabCommitStatus name: 'build', state: 'success'
@@ -42,6 +42,7 @@ podTemplate(label: label, yaml: """
             container('cct-datascience-python') {
                 sh '''#!/usr/bin/env bash
                   set -e
+                  cd src/
                   for dag_file in $(ls dags/); do
                     echo "Testing "$dag_file"..."
                     python3 dags/"$dag_file"
@@ -59,14 +60,15 @@ podTemplate(label: label, yaml: """
                         git config --global credential.helper store
                         echo "https://"$JENKINS_USERNAME":"$JENKINS_PASSWORD"@ds1.capetown.gov.za" > ~/.git-credentials
 
-                        cd ../..
+                        cd ..
                         git clone -b v2 "https://ds1.capetown.gov.za/ds_gitlab/OPM/airflow-dags.git"
+                        ls
                         cp service-alerts/src/dags/*.py airflow-dags/
                         cd airflow-dags
                         git add *
                         git config --global user.email "opm.data@capetown.gov.za"
                         git config --global user.name "JenkinsCI"
-                        git commit -a -m "Automated commit by service-alerts pipeline (https://ds1.capetown.gov.za/ds_gitlab/OPM/service-alerts-connector/commit/"$current_commit")"
+                        git commit -a -m "Automated commit by service-alerts pipeline (https://ds1.capetown.gov.za/ds_gitlab/ginggs/service-alerts-connector/commit/"$current_commit")"
                         git push --set-upstream origin v2
                         exit $?'''
                 }
@@ -77,8 +79,9 @@ podTemplate(label: label, yaml: """
             container('cct-datascience-python') {
                 withCredentials([usernamePassword(credentialsId: 'minio-lake-credentials', passwordVariable: 'MINIO_SECRET', usernameVariable: 'MINIO_ACCESS')]) {
                     sh label: 'upload_script', script: '''#!/usr/bin/env bash
-                        file=service-alerts.zip
-                        bucket=service-alerts.deploy
+                        cd src/
+                        file=service-alerts-connector.zip
+                        bucket=service-alerts-connector.deploy
                         resource="/${bucket}/${file}"
                         contentType="application/octet-stream"
                         dateValue=`date -R`
