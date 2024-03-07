@@ -19,9 +19,11 @@ from cct_connector import (
 
 
 # Internal LLM consts
-CPTGPT_ENDPOINT = "https://datascience.capetown.gov.za/cptgpt/v2/v1/chat/completions"
-DRAFTING_MODEL = "wizardlm-13b-q5"
-DRAFT_LIMIT = 1
+CPTGPT_GPU_ENDPOINT = "https://cptgpt.capetown.gov.za/api/v1/chat/completions"
+GPU_DRAFTING_MODEL = "wizardlm-13b-q5-gguf"
+CPTGPT_CPU_ENDPOINT = "https://datascience.capetown.gov.za/cptgpt/v2/v1/chat/completions"
+CPU_DRAFTING_MODEL = "wizardlm-13b-q5"
+DRAFT_LIMIT = 10
 PROMPT_LENGTH_LIMIT = 2048
 DRAFT_TIMEOUT = 1200
 
@@ -51,8 +53,9 @@ def _cptgpt_call_wrapper(message_dict: typing.Dict, http_session: requests.Sessi
         'Only return the content of the post for the very last JSON given.'
     )
 
+    endpoint = CPTGPT_GPU_ENDPOINT
     params = {
-        "model": DRAFTING_MODEL,
+        "model": GPU_DRAFTING_MODEL,
         "messages": [
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": (
@@ -126,7 +129,7 @@ def _cptgpt_call_wrapper(message_dict: typing.Dict, http_session: requests.Sessi
 
             logging.debug(f"{params=}")
 
-            response = http_session.post(CPTGPT_ENDPOINT, json=params, timeout=DRAFT_TIMEOUT)
+            response = http_session.post(endpoint, json=params, timeout=DRAFT_TIMEOUT)
             response_data = response.json()
             logging.debug(f"{response_data=}")
 
@@ -177,6 +180,11 @@ def _cptgpt_call_wrapper(message_dict: typing.Dict, http_session: requests.Sessi
             last_error = e
             delay = t * 10
             logging.debug(f"sleeping for {delay}...")
+
+            if endpoint == CPTGPT_GPU_ENDPOINT:
+                logging.debug("Falling back to CPU model...")
+                endpoint = CPTGPT_CPU_ENDPOINT
+                params["model"] = CPU_DRAFTING_MODEL
 
             time.sleep(delay)
 
