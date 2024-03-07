@@ -62,8 +62,7 @@ podTemplate(label: label, yaml: """
 
                         cd ..
                         git clone -b v2 "https://ds1.capetown.gov.za/ds_gitlab/OPM/airflow-dags.git"
-                        ls
-                        cp service-alerts/src/dags/*.py airflow-dags/
+                        cp service-alerts-connector/src/dags/*.py airflow-dags/
                         cd airflow-dags
                         git add *
                         git config --global user.email "opm.data@capetown.gov.za"
