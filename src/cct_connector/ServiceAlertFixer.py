@@ -84,10 +84,13 @@ def _clean_sa_df(data_df: pd.DataFrame) -> pd.DataFrame:
         "Title1": "title",
         "Description12": "description",
         "Status12": "status",
-        "Area": "area"
+        "Area": "area",
+        "Areatype": "area_type",
+        "Subtitle": "subtitle"
     })[[
-        ID_COL, "service_area", "title", "description",
-        "area", "location",
+        ID_COL,
+        "service_area", "title", "subtitle", "description",
+        "area_type", "area", "location",
         "publish_date", "effective_date", "expiry_date", "start_timestamp", "forecast_end_timestamp",
         "planned", "status", "notification_number",
     ]]
