@@ -21,11 +21,6 @@ podTemplate(label: label, yaml: """
     node(label) {
         stage('service-alerts setup') {
             git credentialsId: 'jenkins-user', url: 'https://ds1.capetown.gov.za/ds_gitlab/ginggs/service-alerts-connector.git', branch: 'main'
-            container('cct-datascience-python') {
-                    sh label: 'package_install', script: '''#!/usr/bin/env bash
-                        pip3 install --upgrade --no-cache-dir https://lake.capetown.gov.za/pipeline-utils/pipeline_utils-0.2-py2.py3-none-any.whl
-                        exit $?'''
-            }
             updateGitlabCommitStatus name: 'setup', state: 'success'
         }
         stage('service-alerts build') {
