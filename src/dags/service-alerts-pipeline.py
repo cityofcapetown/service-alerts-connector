@@ -11,6 +11,7 @@ with kubernetes_dag.airflowK8sDAG("service-alerts-pipeline",
                                   dag_image=DAG_IMAGE,
                                   start_date=DAG_STARTDATE, schedule_interval=timedelta(minutes=10),
                                   code_location='https://lake.capetown.gov.za/service-alerts-connector.deploy/service-alerts-connector.zip',
+                                  install_gs_utils=True,
                                   concurrency=2) as dag:
     # Operators
     fetch_data_operator = dag.get_dag_operator("fetch-service-alerts",

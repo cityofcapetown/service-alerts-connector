@@ -1,11 +1,12 @@
+import functools
 import json
 import logging
-import re
 import sys
 import time
 import typing
 
 from db_utils import minio_utils
+from geospatial_utils import mportal_utils
 import pandas
 import requests
 from tqdm.auto import tqdm
@@ -37,6 +38,25 @@ SERVICE_AREA_HASHTAGS = {
     "Events": "#Events",
     "City Health": "#CityHealth",
 }
+
+AREA_TYPE_EXCLUSION_SET = {'Driving Licence Testing Centre'}
+AREA_LOOKUP = {
+    "Official Planning Suburb": ("Official planning suburbs", "OFC_SBRB_NAME"),
+    "Solid Waste service areas": ("Solid Waste service areas", "AREA_NAME")
+}
+
+
+@functools.lru_cache()
+def _load_gis_layer(area_type: str, layer_query: str or None = None):
+    if area_type in AREA_LOOKUP:
+        layer_name, _ = AREA_LOOKUP[area_type]
+    else:
+        layer_name = area_type
+
+    logging.debug(f"{area_type=}, {layer_name=}")
+    layer_gdf = mportal_utils.load_sdc_datasets(layer_name, return_gdf=True)
+
+    return layer_gdf.query(layer_query) if layer_query else layer_gdf
 
 
 def _cptgpt_call_wrapper(message_dict: typing.Dict, http_session: requests.Session,
@@ -212,7 +232,7 @@ class ServiceAlertAugmenter(ServiceAlertBase.ServiceAlertsBase):
         self.old_data = False
         # guard parameters
         if self.use_cached_values and (
-                # detecting if cache values should be pulled in
+                # detecting if cache values should be pulled in for back filling
                 (self.cache_data[TWEET_COL].isna().any() or self.cache_data[TOOT_COL].isna().any()) and
                 less_than_limit > 0
         ):
@@ -279,12 +299,69 @@ class ServiceAlertAugmenter(ServiceAlertBase.ServiceAlertsBase):
                 self.data.loc[record_index, social_media_col] = resp
 
     def add_social_media_posts_with_hashtags(self, source_col=TWEET_COL, destination_col=TOOT_COL):
-        self.data[destination_col] = self.data[source_col].copy()
+        if source_col in self.data.columns:
+            # NB this is a bit of a hack - this sort of thing should be left to the downstream consumer
+            self.data[destination_col] = self.data[source_col].copy()
 
-        self.data[destination_col] = (
-                self.data[destination_col] + "\n" +
-                self.data["service_area"].map(SERVICE_AREA_HASHTAGS) + " #CapeTown"
+            self.data[destination_col] = (
+                    self.data[destination_col] + "\n" +
+                    self.data["service_area"].map(SERVICE_AREA_HASHTAGS) + " #CapeTown"
+            )
+        else:
+            logging.warning(f"Skipping because '{source_col}' is not in the data!")
+            logging.debug(f"{self.data.columns}")
+
+    def lookup_geospatial_footprint(self):
+        logging.debug("Forming geospatial value lookup")
+        area_type_spatial_lookup = {
+            val: _load_gis_layer(val).set_index(AREA_LOOKUP[val][1])["WKT"].to_dict()
+            for val in self.data["area_type"].unique()
+            if val is not None and val not in AREA_TYPE_EXCLUSION_SET
+        }
+
+        footprint_lookup = self.data.query(
+            "area_type.notna() and ~area_type.isin(@AREA_TYPE_EXCLUSION_SET)"
+        ).apply(
+            lambda row: area_type_spatial_lookup[row["area_type"]][row["area"]],
+            axis=1
+        ).astype(str)
+
+        if not footprint_lookup.empty:
+            self.data["geospatial_footprint"] = footprint_lookup
+
+    def infer_area(self, layer_name: str, layer_col: str, data_col_name: str, layer_query: str or None = None):
+        layer_gdf = _load_gis_layer(layer_name, layer_query)[[layer_col, "WKT"]]
+
+        area_type_spatial_lookup = {
+            # using geospatial intersect to determine the overlap between the set area
+            val: _load_gis_layer(val).overlay(
+                layer_gdf
+            ).groupby(AREA_LOOKUP[val][1]).apply(
+                # grouping back to a single entry per area
+                lambda group_df: group_df[layer_col].values
+            ).to_dict()
+            for val in self.data["area_type"].unique()
+            if val is not None and val not in AREA_TYPE_EXCLUSION_SET and AREA_LOOKUP[val][0] != layer_name
+        }
+
+        # Injecting lookup values for when we're trying to infer values for the exiting area type
+        for val in self.data["area_type"].unique():
+            if val in AREA_LOOKUP and AREA_LOOKUP[val][0] == layer_name:
+                area_type_spatial_lookup[val] = {
+                    layer_val: layer_val
+                    for layer_val in layer_gdf[layer_col].values
+                }
+
+        area_lookup = self.data.query(
+            "area_type.notna() and ~area_type.isin(@AREA_TYPE_EXCLUSION_SET)"
+        ).apply(
+            lambda row: area_type_spatial_lookup[row["area_type"]][row["area"]],
+            axis=1
         )
+
+        if not area_lookup.empty:
+            self.data[data_col_name] = area_lookup
+
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.DEBUG,
@@ -301,6 +378,18 @@ if __name__ == "__main__":
     logging.info("Generat[ing] Toots...")
     sa_augmenter.add_social_media_posts_with_hashtags()
     logging.info("...Generat[ed] Toots")
+
+    logging.info("Look[ing] up Geospatial Footprint...")
+    sa_augmenter.lookup_geospatial_footprint()
+    logging.info("...Look[ed] up Geospatial Footprint")
+
+    logging.info("Inferr[ing] Suburbs...")
+    sa_augmenter.infer_area("Official planning suburbs", "OFC_SBRB_NAME", "inferred_suburbs")
+    logging.info("...Inferr[ed] Suburbs")
+
+    logging.info("Inferr[ing] Wards...")
+    sa_augmenter.infer_area("Wards", "WARD_NAME", "inferred_wards", "WARD_YEAR == 2021")
+    logging.info("...Inferr[ed] Wards")
 
     logging.info("Wr[iting] to Minio...")
     sa_augmenter.write_data_to_minio(sa_augmenter.data)
