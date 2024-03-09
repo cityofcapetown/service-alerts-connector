@@ -23,10 +23,22 @@
                 {% endif %}
             </h2>
 
-            <p> Below is a suggested social media post for a service alert logged on CRM's Body of Knowledge. Please
-                inspect the suggestion, and if you think it accurately captures the important information contained in
-                the alert, please post it to appropriate social media channels.
+            <p> Below is a summary of a potential outage or service alert logged on CRM's Body of Knowledge, formatted
+                for easy sharing. You are receiving this email because of your interest in {{ email_focus }}. </p>
+            <p>Please inspect the summary, and if you think it accurately captures the important information contained
+                in the alert, please share it publicly and widely. </p>
+        </td>
+    </tr>
+    <tr>
+        <td>
+            <h2>Suggested Post</h2>
+            <p style="background-color: #ffffcc; color: #000000; padding: 10px; border: 1px solid #000000; border-radius: 5px; font-weight: bold;">
+                <span style="margin-right: 10px; font-size: 20px;">⚠️</span>
+                DANGER. GEVAAR. INGOZI. This summary is generated from the table of details below using generative AI.
+                The algorithm used may have made errors, and so the summary content should be double-checked.
             </p>
+
+            <p style="font-size: 18px; color: #0000ff; font-weight: bold;">{{ post_text|replace("\n","<br>") }}</p>
         </td>
     </tr>
     <tr>
@@ -49,23 +61,11 @@
     </tr>
     <tr>
         <td>
-            <h2>Suggested Post</h2>
-            <p style="background-color: #ffffcc; color: #000000; padding: 10px; border: 1px solid #000000; border-radius: 5px; font-weight: bold;">
-                <span style="margin-right: 10px; font-size: 20px;">⚠️</span>
-                DANGER. GEVAAR. INGOZI. The post below is generated from the above details automatically. The algorithm
-                used may have made errors, and so needs to be checked carefully.
-            </p>
-
-            <p style="font-size: 18px; color: #0000ff; font-weight: bold;">{{ post_text|replace("\n","<br>") }}</p>
-        </td>
-    </tr>
-    <tr>
-        <td>
             <h2>Why am I receiving this email?</h2>
-            <p> You have been identified as someone that should be receiving suggestions for social media posts relating
-                to {{ email_focus }}. If you think that you are receiving this email in error, please reply to this
-                email,
-                explaining why you think this isn't correct, and my wranglers will correct me.
+            <p> You have been identified as someone that should be receiving service alerts relating to
+                {{ email_focus }}. If you think that you are receiving this email in error, please reply to this
+                email, explaining why you think this isn't correct, and my wranglers in the Data Science branch will
+                correct me.
             </p>
         </td>
     </tr>
@@ -74,12 +74,11 @@
             <h2>Something wrong with this email?</h2>
             <p>
                 I am but a simple email robot - if anything in this automatically generated product doesn't
-                make any sense, or if you have any queries, suggestions or issues, please rather
-                <a href='mailto:gordon.inggs@capetown.gov.za,delyno.dutoit@capetown.gov.za'>contact</a>
+                make any sense, or if you have any queries, suggestions or issues, please reply to this email to contact
                 the Data Science team.
             </p>
             <p>
-                My <a href="https://ds1.capetown.gov.za/ds_gitlab/OPM/sap-r3-connector">source code</a> is
+                My <a href="https://github.com/cityofcapetown/service-alerts-connector">source code</a> is
                 also open for inspection and suggestions!
             </p>
             <p>

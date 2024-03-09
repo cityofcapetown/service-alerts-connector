@@ -1,5 +1,6 @@
-import functools
 import dataclasses
+import functools
+import hashlib
 import logging
 import pathlib
 import tempfile
@@ -19,10 +20,13 @@ from cct_connector.ServiceAlertBroadcaster import ServiceAlertOutputFileConfig, 
 
 DS_REPLY_TO = (
     "gordon.inggs@capetown.gov.za",
-    "delyno.dutoit@capetown.gov.za"
+    "delyno.dutoit@capetown.gov.za",
+    "henri.knoesen@capetown.gov.za",
+    "kathryn.mcdermott@capetown.gov.za",
+    "muhammed.ockard@capetown.gov.za",
 )
 RESOURCES_PATH = pathlib.Path(__file__).parent / ".." / "resources"
-ALERT_EMAIL_SUBJECT_PREFIX = "Service Alert Emailer"
+ALERT_EMAIL_SUBJECT_PREFIX = "Service Alert"
 ALERT_EMAIL_TEMPLATE = "service_alert_tweet_emailer_template.html.jinja2"
 CITY_LOGO_FILENAME = "rect_city_logo.png"
 LINK_TEMPLATE = "https://ctapps.capetown.gov.za/sites/crhub/SitePages/ViewServiceAlert.aspx#?ID={alert_id}"
@@ -31,31 +35,69 @@ LINK_TEMPLATE = "https://ctapps.capetown.gov.za/sites/crhub/SitePages/ViewServic
 @dataclasses.dataclass
 class ServiceAlertEmailConfig(ServiceAlertOutputFileConfig):
     receivers: typing.Tuple[typing.Tuple[str or None, str], ...]
-    subject_suffix: str
+    email_focus: str
     additional_filter: str or None
 
 
+EMAIL_COLS = [ID_COL, "service_area", "title", "description",
+              "area_type", "area", "location",
+              "inferred_wards", "inferred_suburbs",
+              "start_timestamp", "forecast_end_timestamp",
+              "planned", "request_number", "tweet_text"]
+
 SA_EMAIL_CONFIGS = [
-    # Planned Electricity Alerts
-    ServiceAlertEmailConfig("current", True, "v1", V0_COLS + [TWEET_COL],
+    # # Planned Electricity Alerts
+    ServiceAlertEmailConfig("current", True, "v1", EMAIL_COLS,
                             (("Mary-Ann", "MaryAnn.FransmanJohannes@capetown.gov.za"),
-                             (None, "ElectricityMaintenance.Outages@capetown.gov.za"),
-                             (None, "social.media@capetown.gov.za"),
-                             ("Gordon", "gordon.inggs@capetown.gov.za"),),
-                            "planned electricity alerts",
+                             (None, "ElectricityMaintenance.Outages@capetown.gov.za"),),
+                            "all planned electricity work",
                             "service_area == 'Electricity'"),
-    # All other Planned Alerts
-    ServiceAlertEmailConfig("current", True, "v1", V0_COLS + [TWEET_COL],
+    # # All other Planned Alerts
+    ServiceAlertEmailConfig("current", True, "v1", EMAIL_COLS,
                             ((None, "social.media@capetown.gov.za"),
                              ("Gordon", "gordon.inggs@capetown.gov.za"),),
-                            "planned alerts",
-                            "service_area != 'Electricity'"),
-    # Unplanned Alerts
-    ServiceAlertEmailConfig("current", False, "v1", V0_COLS + [TWEET_COL],
-                            ((None, "social.media@capetown.gov.za"),
-                             ("Gordon", "gordon.inggs@capetown.gov.za"),),
-                            "unplanned alerts",
+                            "all planned alerts",
                             None),
+    # # Unplanned Alerts
+    ServiceAlertEmailConfig("current", False, "v1", EMAIL_COLS,
+                            ((None, "social.media@capetown.gov.za"),
+                             ("Gordon", "gordon.inggs@capetown.gov.za"),),
+                            "all unplanned work",
+                            None),
+    # Ward 77
+    ServiceAlertEmailConfig("current", False, "v1", EMAIL_COLS,
+                            (("Gordon", "gordon.inggs@capetown.gov.za"),
+                             ("Delyno", "delyno.dutoit@capetown.gov.za"),
+                             ("Henri", "henri.knoesen@capetown.gov.za"),
+                             ("Kathryn", "kathryn.mcdermott@capetown.gov.za"),
+                             ("Muhammed", "muhammed.ockard@capetown.gov.za"),),
+                            "all unplanned alerts that might affect Ward 77",
+                            "inferred_wards.astype('str').str.contains('77')"),
+    ServiceAlertEmailConfig("current", True, "v1", EMAIL_COLS,
+                            (("Gordon", "gordon.inggs@capetown.gov.za"),
+                             ("Delyno", "delyno.dutoit@capetown.gov.za"),
+                             ("Henri", "henri.knoesen@capetown.gov.za"),
+                             ("Kathryn", "kathryn.mcdermott@capetown.gov.za"),
+                             ("Muhammed", "muhammed.ockard@capetown.gov.za"),),
+                            "all planned works that might affect Ward 77",
+                            "inferred_wards.astype('str').str.contains('77')"),
+    # Ward 115
+    ServiceAlertEmailConfig("current", False, "v1", EMAIL_COLS,
+                            (("Gordon", "gordon.inggs@capetown.gov.za"),
+                             ("Delyno", "delyno.dutoit@capetown.gov.za"),
+                             ("Henri", "henri.knoesen@capetown.gov.za"),
+                             ("Kathryn", "kathryn.mcdermott@capetown.gov.za"),
+                             ("Muhammed", "muhammed.ockard@capetown.gov.za"),),
+                            "all unplanned alerts that might affect Ward 115",
+                            "inferred_wards.astype('str').str.contains('115')"),
+    ServiceAlertEmailConfig("current", True, "v1", EMAIL_COLS,
+                            (("Gordon", "gordon.inggs@capetown.gov.za"),
+                             ("Delyno", "delyno.dutoit@capetown.gov.za"),
+                             ("Henri", "henri.knoesen@capetown.gov.za"),
+                             ("Kathryn", "kathryn.mcdermott@capetown.gov.za"),
+                             ("Muhammed", "muhammed.ockard@capetown.gov.za"),),
+                            "all planned works that might affect Ward 115",
+                            "inferred_wards.astype('str').str.contains('115')"),
 ]
 
 
@@ -69,7 +111,7 @@ def _get_logo_attachment() -> FileAttachment:
 
 
 def _form_and_send_alerts_email(alert_dict: typing.Dict[str, typing.Any],
-                                subject_suffix: str,
+                                email_focus: str,
                                 recipients: typing.Tuple[typing.Tuple[str, str]]) -> str:
     secrets = secrets_utils.get_secrets()
 
@@ -78,7 +120,7 @@ def _form_and_send_alerts_email(alert_dict: typing.Dict[str, typing.Any],
                                                         secrets["proxy"]["password"], )
 
         # Forming email message
-        email_subject = f"{ALERT_EMAIL_SUBJECT_PREFIX} - {subject_suffix}"
+        email_subject = f"{ALERT_EMAIL_SUBJECT_PREFIX} - {alert_dict['title']} in {alert_dict['area']}"
         email_request_id = str(uuid.uuid4())
         email_date = pandas.Timestamp.now().isoformat()
         suggested_post = alert_dict[TWEET_COL]
@@ -87,12 +129,22 @@ def _form_and_send_alerts_email(alert_dict: typing.Dict[str, typing.Any],
         # removing null fields and tweet col for email generation
         fields_to_delete = [TWEET_COL]
         for k, v in alert_dict.items():
-            if pandas.isna(v):
+            if not isinstance(v, typing.Collection) and pandas.isna(v):
                 fields_to_delete += [k]
+            elif isinstance(v, typing.Collection) and all(map(pandas.isna, v)):
+                fields_to_delete += [k]
+
+        if alert_dict["area_type"] == "Official Planning Suburb":
+            fields_to_delete += ["inferred_suburbs"]
 
         for k in fields_to_delete:
             if k in alert_dict:
                 del alert_dict[k]
+
+        # formatting array fields
+        for k, v in alert_dict.items():
+            if isinstance(v, typing.Collection) and not isinstance(v, str):
+                alert_dict[k] = ", ".join(v)
 
         logging.debug(f"{email_subject=}, {email_request_id=}, {email_date=}")
 
@@ -103,7 +155,7 @@ def _form_and_send_alerts_email(alert_dict: typing.Dict[str, typing.Any],
                 recipients=[name for name, _ in recipients if name],
                 alert_dict=alert_dict,
                 post_text=suggested_post,
-                email_focus=subject_suffix,
+                email_focus=email_focus,
                 request_id=email_request_id,
                 iso8601_timestamp=email_date,
                 bok_link=link_str,
@@ -131,6 +183,8 @@ class ServiceAlertEmailer(ServiceAlertBroadcaster):
     def send_alert_emails(self):
         for config, (_, alert_df) in zip(SA_EMAIL_CONFIGS,
                                          self._service_alerts_generator(SA_EMAIL_CONFIGS)):
+            config_hash = hashlib.sha256(str.encode(str(config))).hexdigest()
+
             if config.additional_filter:
                 alert_df = alert_df.query(config.additional_filter)
 
@@ -139,17 +193,21 @@ class ServiceAlertEmailer(ServiceAlertBroadcaster):
                 continue
 
             for alert_dict in alert_df.to_dict(orient="records"):
-                email_filename = f"{alert_dict[ID_COL]}.html"
+                email_filename = f"{config_hash}_{alert_dict[ID_COL]}.html"
+
+                if alert_dict[TWEET_COL] is None:
+                    logging.warning(f"Skipping empty post - {alert_dict[ID_COL]}")
+                    continue
 
                 logging.debug("Checking if email has already been sent...")
                 email_check = list(minio_utils.list_objects_in_bucket(self.minio_write_name,
                                                                       minio_prefix_override=email_filename))
 
                 if len(email_check) > 0:
-                    logging.warning(f"Skipping {alert_dict[ID_COL]} - already sent!")
+                    logging.warning(f"Skipping {alert_dict[ID_COL]} for this config - already sent!")
                     continue
 
-                email_message = _form_and_send_alerts_email(alert_dict, config.subject_suffix, config.receivers)
+                email_message = _form_and_send_alerts_email(alert_dict, config.email_focus, config.receivers)
 
                 logging.debug("Backing up email")
                 with tempfile.TemporaryDirectory() as tempdir:
