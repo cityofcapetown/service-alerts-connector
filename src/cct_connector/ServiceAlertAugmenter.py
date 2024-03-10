@@ -322,9 +322,12 @@ class ServiceAlertAugmenter(ServiceAlertBase.ServiceAlertsBase):
         footprint_lookup = self.data.query(
             "area_type.notna() and ~area_type.isin(@AREA_TYPE_EXCLUSION_SET)"
         ).apply(
-            lambda row: area_type_spatial_lookup[row["area_type"]][row["area"]],
+            lambda row: (
+                area_type_spatial_lookup[row["area_type"]][row["area"]]
+                if row["area"] in area_type_spatial_lookup[row["area_type"]] else None
+            ),
             axis=1
-        ).astype(str)
+        ).dropna().astype(str)
 
         if not footprint_lookup.empty:
             self.data["geospatial_footprint"] = footprint_lookup
@@ -355,9 +358,12 @@ class ServiceAlertAugmenter(ServiceAlertBase.ServiceAlertsBase):
         area_lookup = self.data.query(
             "area_type.notna() and ~area_type.isin(@AREA_TYPE_EXCLUSION_SET)"
         ).apply(
-            lambda row: area_type_spatial_lookup[row["area_type"]][row["area"]],
+            lambda row: (
+                area_type_spatial_lookup[row["area_type"]][row["area"]]
+                if row["area"] in area_type_spatial_lookup[row["area_type"]] else None
+            ),
             axis=1
-        )
+        ).dropna()
 
         if not area_lookup.empty:
             self.data[data_col_name] = area_lookup
