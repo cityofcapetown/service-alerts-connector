@@ -342,7 +342,7 @@ class ServiceAlertAugmenter(ServiceAlertBase.ServiceAlertsBase):
                 layer_gdf
             ).groupby(AREA_LOOKUP[val][1]).apply(
                 # grouping back to a single entry per area
-                lambda group_df: group_df[layer_col].values
+                lambda group_df: group_df[layer_col].values.astype(str)
             ).to_dict()
             for val in self.data["area_type"].unique()
             if val is not None and val not in AREA_TYPE_EXCLUSION_SET and AREA_LOOKUP[val][0] != layer_name
@@ -352,7 +352,7 @@ class ServiceAlertAugmenter(ServiceAlertBase.ServiceAlertsBase):
         for val in self.data["area_type"].unique():
             if val in AREA_LOOKUP and AREA_LOOKUP[val][0] == layer_name:
                 area_type_spatial_lookup[val] = {
-                    layer_val: numpy.array([layer_val])
+                    layer_val: numpy.array([layer_val]).astype(str)
                     for layer_val in layer_gdf[layer_col].values
                 }
 
