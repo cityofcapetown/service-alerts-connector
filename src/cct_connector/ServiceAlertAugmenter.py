@@ -372,11 +372,11 @@ if __name__ == "__main__":
     logging.info("...G[ot] data from Minio")
 
     logging.info("Generat[ing] Tweets...")
-    # sa_augmenter.add_social_media_posts(280, TWEET_COL)
+    sa_augmenter.add_social_media_posts(280, TWEET_COL)
     logging.info("...Generat[ed] Tweets")
 
     logging.info("Generat[ing] Toots...")
-    # sa_augmenter.add_social_media_posts_with_hashtags()
+    sa_augmenter.add_social_media_posts_with_hashtags()
     logging.info("...Generat[ed] Toots")
 
     logging.info("Look[ing] up Geospatial Footprint...")
@@ -392,5 +392,5 @@ if __name__ == "__main__":
     logging.info("...Inferr[ed] Wards")
 
     logging.info("Wr[iting] to Minio...")
-    # sa_augmenter.write_data_to_minio(sa_augmenter.data)
+    sa_augmenter.write_data_to_minio(sa_augmenter.data)
     logging.info("...Wr[ote] to Minio")
