@@ -18,7 +18,6 @@ from cct_connector import (
     TWEET_COL, TOOT_COL,
 )
 
-
 # Internal LLM consts
 CPTGPT_GPU_ENDPOINT = "https://cptgpt.capetown.gov.za/api/v1/chat/completions"
 GPU_DRAFTING_MODEL = "wizardlm-13b-q5-gguf"
@@ -39,10 +38,11 @@ SERVICE_AREA_HASHTAGS = {
     "City Health": "#CityHealth",
 }
 
-AREA_TYPE_EXCLUSION_SET = {'Driving Licence Testing Centre'}
+AREA_TYPE_EXCLUSION_SET = {'Driving Licence Testing Centre', }
 AREA_LOOKUP = {
     "Official Planning Suburb": ("Official planning suburbs", "OFC_SBRB_NAME"),
-    "Solid Waste service areas": ("Solid Waste service areas", "AREA_NAME")
+    "Solid Waste service areas": ("Solid Waste service areas", "AREA_NAME"),
+    'Citywide': ('City boundary', 'CITY_NAME'),
 }
 
 
