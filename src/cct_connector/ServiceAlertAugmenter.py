@@ -8,6 +8,7 @@ import typing
 from db_utils import minio_utils
 from geospatial_utils import mportal_utils
 import pandas
+import numpy
 import requests
 from tqdm.auto import tqdm
 
@@ -351,7 +352,7 @@ class ServiceAlertAugmenter(ServiceAlertBase.ServiceAlertsBase):
         for val in self.data["area_type"].unique():
             if val in AREA_LOOKUP and AREA_LOOKUP[val][0] == layer_name:
                 area_type_spatial_lookup[val] = {
-                    layer_val: layer_val
+                    layer_val: numpy.array([layer_val])
                     for layer_val in layer_gdf[layer_col].values
                 }
 
