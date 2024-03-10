@@ -8,7 +8,6 @@ import typing
 from db_utils import minio_utils
 from geospatial_utils import mportal_utils
 import pandas
-import numpy
 import requests
 from tqdm.auto import tqdm
 
@@ -348,16 +347,10 @@ class ServiceAlertAugmenter(ServiceAlertBase.ServiceAlertsBase):
             if val is not None and val not in AREA_TYPE_EXCLUSION_SET and AREA_LOOKUP[val][0] != layer_name
         }
 
-        # Injecting lookup values for when we're trying to infer values for the exiting area type
-        for val in self.data["area_type"].unique():
-            if val in AREA_LOOKUP and AREA_LOOKUP[val][0] == layer_name:
-                area_type_spatial_lookup[val] = {
-                    layer_val: numpy.array([layer_val]).astype(str)
-                    for layer_val in layer_gdf[layer_col].values
-                }
-
         area_lookup = self.data.query(
-            "area_type.notna() and ~area_type.isin(@AREA_TYPE_EXCLUSION_SET)"
+            "area_type.notna() and "
+            "area_type in @AREA_LOOKUP and "
+            "area_type.map(@AREA_LOOKUP).str.contains(@layer_name)"
         ).apply(
             lambda row: (
                 area_type_spatial_lookup[row["area_type"]][row["area"]]
@@ -379,11 +372,11 @@ if __name__ == "__main__":
     logging.info("...G[ot] data from Minio")
 
     logging.info("Generat[ing] Tweets...")
-    sa_augmenter.add_social_media_posts(280, TWEET_COL)
+    # sa_augmenter.add_social_media_posts(280, TWEET_COL)
     logging.info("...Generat[ed] Tweets")
 
     logging.info("Generat[ing] Toots...")
-    sa_augmenter.add_social_media_posts_with_hashtags()
+    # sa_augmenter.add_social_media_posts_with_hashtags()
     logging.info("...Generat[ed] Toots")
 
     logging.info("Look[ing] up Geospatial Footprint...")
@@ -399,5 +392,5 @@ if __name__ == "__main__":
     logging.info("...Inferr[ed] Wards")
 
     logging.info("Wr[iting] to Minio...")
-    sa_augmenter.write_data_to_minio(sa_augmenter.data)
+    # sa_augmenter.write_data_to_minio(sa_augmenter.data)
     logging.info("...Wr[ote] to Minio")
