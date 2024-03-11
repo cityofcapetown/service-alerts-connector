@@ -41,7 +41,7 @@ SERVICE_AREA_HASHTAGS = {
 AREA_TYPE_EXCLUSION_SET = {'Driving Licence Testing Centre', }
 AREA_LOOKUP = {
     "Official Planning Suburb": ("Official planning suburbs", "OFC_SBRB_NAME"),
-    "Solid Waste service areas": ("Solid Waste service areas", "AREA_NAME"),
+    "Solid Waste Regional Service Area": ("Solid Waste service areas", "AREA_NAME"),
     'Citywide': ('City boundary', 'CITY_NAME'),
 }
 
