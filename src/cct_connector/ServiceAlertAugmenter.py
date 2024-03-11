@@ -347,11 +347,16 @@ class ServiceAlertAugmenter(ServiceAlertBase.ServiceAlertsBase):
             if val is not None and val not in AREA_TYPE_EXCLUSION_SET and AREA_LOOKUP[val][0] != layer_name
         }
 
-        area_lookup = self.data.query(
-            "area_type.notna() and "
-            "area_type in @AREA_LOOKUP and "
-            "area_type.map(@AREA_LOOKUP).str.contains(@layer_name)"
-        ).apply(
+        valid_mask = (
+            self.data["area_type"].apply(
+                lambda val: (
+                        val in AREA_LOOKUP and
+                        AREA_LOOKUP[val][0] != layer_name
+                )
+            )
+        )
+
+        area_lookup = self.data.loc[valid_mask].apply(
             lambda row: (
                 area_type_spatial_lookup[row["area_type"]][row["area"]]
                 if row["area"] in area_type_spatial_lookup[row["area_type"]] else None
