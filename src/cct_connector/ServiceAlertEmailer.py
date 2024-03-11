@@ -49,6 +49,7 @@ SA_EMAIL_CONFIGS = [
     # # Planned Electricity Alerts
     ServiceAlertEmailConfig("current", True, "v1", EMAIL_COLS,
                             (("Mary-Ann", "MaryAnn.FransmanJohannes@capetown.gov.za"),
+                             ("Gordon", "gordon.inggs@capetown.gov.za"),
                              (None, "ElectricityMaintenance.Outages@capetown.gov.za"),),
                             "all planned electricity work",
                             "service_area == 'Electricity'"),
