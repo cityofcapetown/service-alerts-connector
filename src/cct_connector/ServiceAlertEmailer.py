@@ -55,14 +55,12 @@ SA_EMAIL_CONFIGS = [
                             "service_area == 'Electricity'"),
     # # All other Planned Alerts
     ServiceAlertEmailConfig("current", True, "v1", EMAIL_COLS,
-                            ((None, "social.media@capetown.gov.za"),
-                             ("Gordon", "gordon.inggs@capetown.gov.za"),),
+                            (("Social Media Team", "social.media@capetown.gov.za"),),
                             "all planned work",
                             None),
     # # Unplanned Alerts
     ServiceAlertEmailConfig("current", False, "v1", EMAIL_COLS,
-                            ((None, "social.media@capetown.gov.za"),
-                             ("Gordon", "gordon.inggs@capetown.gov.za"),),
+                            (("Social Media Team", "social.media@capetown.gov.za"),),
                             "all unplanned alerts",
                             None),
     # Ward 16
