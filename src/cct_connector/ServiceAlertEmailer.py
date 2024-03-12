@@ -138,7 +138,7 @@ SA_EMAIL_CONFIGS = [
                             (("Gordon", "gordon.inggs@capetown.gov.za"),
                              ("Shereef", "Mohammed.Maroof@capetown.gov.za"),),
                             "all unplanned alerts affecting the whole City",
-                            "inferred_wards.astype('str').str.contains('115')"),
+                            "area_type == 'Citywide'"),
     ServiceAlertEmailConfig("current", True, "v1", EMAIL_COLS,
                             (("Gordon", "gordon.inggs@capetown.gov.za"),
                              ("Shereef", "Mohammed.Maroof@capetown.gov.za"),),
