@@ -5,7 +5,7 @@ import logging
 from db_utils import minio_utils
 import pandas
 
-from cct_connector import CHECKSUM_COLUMN, LATEST_PREFIX
+from cct_connector import CHECKSUM_COLUMN, LATEST_PREFIX, ID_COL
 
 
 N_PROCS = max(1, min(8, int(multiprocessing.cpu_count() / 2)))  # cap processor use at 8
@@ -19,7 +19,9 @@ def _calculate_checksums(args):
     checksums = data_df.apply(
         lambda row: hashlib.md5(
             str.encode("".join(map(str, row.values)) + stage_salt)
-        ).hexdigest(),
+        ).hexdigest() if row["Id"] not in {
+            # put IDs here if you want to force reprocessing
+        } else None,
         axis='columns'
     )
 
@@ -165,7 +167,7 @@ class ServiceAlertsBase:
         elif self.use_cached_values:
             logging.debug("(pre-cache append) data.shape={}".format(data.shape))
             logging.debug(f"(pre-cache append) data.columns={data.columns}")
-            data = pandas.concat([data, self.cache_data])
+            data = pandas.concat([data, self.cache_data]).drop_duplicates(subset=[ID_COL], keep='first')
             logging.debug(f"(post-cache append) data.columns={data.columns}")
             logging.debug("(post-cache append) data.shape={}".format(data.shape))
 
