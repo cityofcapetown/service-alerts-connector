@@ -133,6 +133,17 @@ SA_EMAIL_CONFIGS = [
                              ("Muhammed", "muhammed.ockard@capetown.gov.za"),),
                             "all planned works that might affect Ward 115",
                             "inferred_wards.astype('str').str.contains('115')"),
+    # Citywide
+    ServiceAlertEmailConfig("current", False, "v1", EMAIL_COLS,
+                            (("Gordon", "gordon.inggs@capetown.gov.za"),
+                             ("Shereef", "Mohammed.Maroof@capetown.gov.za"),),
+                            "all unplanned alerts affecting the whole City",
+                            "inferred_wards.astype('str').str.contains('115')"),
+    ServiceAlertEmailConfig("current", True, "v1", EMAIL_COLS,
+                            (("Gordon", "gordon.inggs@capetown.gov.za"),
+                             ("Shereef", "Mohammed.Maroof@capetown.gov.za"),),
+                            "all planned works affecting the whole City",
+                            "area_type == 'Citywide'"),
 ]
 
 
