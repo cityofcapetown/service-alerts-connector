@@ -148,6 +148,7 @@ class ServiceAlertsBase:
 
             # Setting checksum column values
             data[CHECKSUM_COLUMN] = checksums
+            data.reset_index(inplace=True)
 
         return data
 
