@@ -23,7 +23,7 @@ DS_REPLY_TO = (
     "delyno.dutoit@capetown.gov.za",
     "henri.knoesen@capetown.gov.za",
     "kathryn.mcdermott@capetown.gov.za",
-    "muhammed.ockard@capetown.gov.za",
+    "muhammed.ockards@capetown.gov.za",
 )
 RESOURCES_PATH = pathlib.Path(__file__).parent / ".." / "resources"
 ALERT_EMAIL_SUBJECT_PREFIX = "Service Alert"
@@ -69,7 +69,7 @@ SA_EMAIL_CONFIGS = [
                              ("Delyno", "delyno.dutoit@capetown.gov.za"),
                              ("Henri", "henri.knoesen@capetown.gov.za"),
                              ("Kathryn", "kathryn.mcdermott@capetown.gov.za"),
-                             ("Muhammed", "muhammed.ockard@capetown.gov.za"),),
+                             ("Muhammed", "muhammed.ockards@capetown.gov.za"),),
                             "all unplanned alerts that might affect Ward 16",
                             "inferred_wards.astype('str').str.contains('\W16\W')"),
     ServiceAlertEmailConfig("current", True, "v1", EMAIL_COLS,
@@ -77,7 +77,7 @@ SA_EMAIL_CONFIGS = [
                              ("Delyno", "delyno.dutoit@capetown.gov.za"),
                              ("Henri", "henri.knoesen@capetown.gov.za"),
                              ("Kathryn", "kathryn.mcdermott@capetown.gov.za"),
-                             ("Muhammed", "muhammed.ockard@capetown.gov.za"),),
+                             ("Muhammed", "muhammed.ockards@capetown.gov.za"),),
                             "all planned works that might affect Ward 16",
                             "inferred_wards.astype('str').str.contains('\W16\W')"),
     # Ward 21
@@ -86,7 +86,7 @@ SA_EMAIL_CONFIGS = [
                              ("Delyno", "delyno.dutoit@capetown.gov.za"),
                              ("Henri", "henri.knoesen@capetown.gov.za"),
                              ("Kathryn", "kathryn.mcdermott@capetown.gov.za"),
-                             ("Muhammed", "muhammed.ockard@capetown.gov.za"),),
+                             ("Muhammed", "muhammed.ockards@capetown.gov.za"),),
                             "all unplanned alerts that might affect Ward 21",
                             "inferred_wards.astype('str').str.contains('\W21\W')"),
     ServiceAlertEmailConfig("current", True, "v1", EMAIL_COLS,
@@ -94,7 +94,7 @@ SA_EMAIL_CONFIGS = [
                              ("Delyno", "delyno.dutoit@capetown.gov.za"),
                              ("Henri", "henri.knoesen@capetown.gov.za"),
                              ("Kathryn", "kathryn.mcdermott@capetown.gov.za"),
-                             ("Muhammed", "muhammed.ockard@capetown.gov.za"),),
+                             ("Muhammed", "muhammed.ockards@capetown.gov.za"),),
                             "all planned works that might affect Ward 21",
                             "inferred_wards.astype('str').str.contains('\W21\W')"),
     # Ward 77
@@ -103,7 +103,7 @@ SA_EMAIL_CONFIGS = [
                              ("Delyno", "delyno.dutoit@capetown.gov.za"),
                              ("Henri", "henri.knoesen@capetown.gov.za"),
                              ("Kathryn", "kathryn.mcdermott@capetown.gov.za"),
-                             ("Muhammed", "muhammed.ockard@capetown.gov.za"),),
+                             ("Muhammed", "muhammed.ockards@capetown.gov.za"),),
                             "all unplanned alerts that might affect Ward 77",
                             "inferred_wards.astype('str').str.contains('\W77\W')"),
     ServiceAlertEmailConfig("current", True, "v1", EMAIL_COLS,
@@ -111,7 +111,7 @@ SA_EMAIL_CONFIGS = [
                              ("Delyno", "delyno.dutoit@capetown.gov.za"),
                              ("Henri", "henri.knoesen@capetown.gov.za"),
                              ("Kathryn", "kathryn.mcdermott@capetown.gov.za"),
-                             ("Muhammed", "muhammed.ockard@capetown.gov.za"),),
+                             ("Muhammed", "muhammed.ockards@capetown.gov.za"),),
                             "all planned works that might affect Ward 77",
                             "inferred_wards.astype('str').str.contains('\W77\W')"),
     # Ward 115
@@ -120,7 +120,7 @@ SA_EMAIL_CONFIGS = [
                              ("Delyno", "delyno.dutoit@capetown.gov.za"),
                              ("Henri", "henri.knoesen@capetown.gov.za"),
                              ("Kathryn", "kathryn.mcdermott@capetown.gov.za"),
-                             ("Muhammed", "muhammed.ockard@capetown.gov.za"),),
+                             ("Muhammed", "muhammed.ockards@capetown.gov.za"),),
                             "all unplanned alerts that might affect Ward 115",
                             "inferred_wards.astype('str').str.contains('\W115\W')"),
     ServiceAlertEmailConfig("current", True, "v1", EMAIL_COLS,
@@ -128,7 +128,7 @@ SA_EMAIL_CONFIGS = [
                              ("Delyno", "delyno.dutoit@capetown.gov.za"),
                              ("Henri", "henri.knoesen@capetown.gov.za"),
                              ("Kathryn", "kathryn.mcdermott@capetown.gov.za"),
-                             ("Muhammed", "muhammed.ockard@capetown.gov.za"),),
+                             ("Muhammed", "muhammed.ockards@capetown.gov.za"),),
                             "all planned works that might affect Ward 115",
                             "inferred_wards.astype('str').str.contains('\W115\W')"),
     # Citywide
