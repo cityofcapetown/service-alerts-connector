@@ -44,6 +44,7 @@ AREA_LOOKUP = {
     "Solid Waste Regional Service Area": ("Solid Waste service areas", "AREA_NAME"),
     'Citywide': ('City boundary', 'CITY_NAME'),
 }
+AREA_INFERENCE_THRESHOLD = 0.05
 
 
 @functools.lru_cache()
@@ -336,9 +337,18 @@ class ServiceAlertAugmenter(ServiceAlertBase.ServiceAlertsBase):
         layer_gdf = _load_gis_layer(layer_name, layer_query)[[layer_col, "WKT"]]
 
         area_type_spatial_lookup = {
-            # using geospatial intersect to determine the overlap between the set area
-            val: _load_gis_layer(val).overlay(
+            val: _load_gis_layer(val).assign(
+                # getting total area before intersect operation
+                area=lambda gdf: gdf.geometry.area
+            ).overlay(
+                # using geospatial intersect to determine the overlap between the set area
                 layer_gdf
+            ).assign(
+                # working out proportional area of the intersection
+                prop_area=lambda gdf: gdf.geometry.area/gdf["area"]
+            ).query(
+                # applying the threshold - only count the intersection if it exceeds the threshold
+                "prop_area > @AREA_INFERENCE_THRESHOLD"
             ).groupby(AREA_LOOKUP[val][1]).apply(
                 # grouping back to a single entry per area
                 lambda group_df: group_df[layer_col].values.astype(str)
@@ -350,7 +360,9 @@ class ServiceAlertAugmenter(ServiceAlertBase.ServiceAlertsBase):
         valid_mask = (
             self.data["area_type"].apply(
                 lambda val: (
+                        # checking that the area type is even in our lookup
                         val in AREA_LOOKUP and
+                        # checking that we're not trying to infer the area that matches the area_type
                         AREA_LOOKUP[val][0] != layer_name
                 )
             )
