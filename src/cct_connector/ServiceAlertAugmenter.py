@@ -334,18 +334,18 @@ class ServiceAlertAugmenter(ServiceAlertBase.ServiceAlertsBase):
             self.data["geospatial_footprint"] = footprint_lookup
 
     def infer_area(self, layer_name: str, layer_col: str, data_col_name: str, layer_query: str or None = None):
-        layer_gdf = _load_gis_layer(layer_name, layer_query)[[layer_col, "WKT"]]
+        layer_gdf = _load_gis_layer(layer_name, layer_query)[[layer_col, "WKT"]].assign(
+            # getting total area before intersect operation
+            area=lambda gdf: gdf.geometry.area
+        )
 
         area_type_spatial_lookup = {
-            val: _load_gis_layer(val).assign(
-                # getting total area before intersect operation
-                area=lambda gdf: gdf.geometry.area
-            ).overlay(
+            val: _load_gis_layer(val).overlay(
                 # using geospatial intersect to determine the overlap between the set area
                 layer_gdf
             ).assign(
                 # working out proportional area of the intersection
-                prop_area=lambda gdf: gdf.geometry.area/gdf["area"]
+                prop_area=lambda gdf: gdf.geometry.area / gdf["area"]
             ).query(
                 # applying the threshold - only count the intersection if it exceeds the threshold
                 "prop_area > @AREA_INFERENCE_THRESHOLD"
@@ -360,7 +360,7 @@ class ServiceAlertAugmenter(ServiceAlertBase.ServiceAlertsBase):
         valid_mask = (
             self.data["area_type"].apply(
                 lambda val: (
-                        # checking that the area type is even in our lookup
+                    # checking that the area type is even in our lookup
                         val in AREA_LOOKUP and
                         # checking that we're not trying to infer the area that matches the area_type
                         AREA_LOOKUP[val][0] != layer_name
