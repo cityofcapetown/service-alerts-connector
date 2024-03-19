@@ -106,6 +106,10 @@ class ServiceAlertsBase:
         )
         logging.debug(f"data.columns={data.columns}")
 
+        if "index" in data.columns:
+            logging.warning("Dropping spurious index column")
+            data.drop(columns=["index"], inplace=True)
+
         if self.use_cached_values:
             # While we're waiting for the previous results to download, calculate the checksums
             logging.debug("Calculat[ing] Checksums on existing data")
@@ -150,7 +154,7 @@ class ServiceAlertsBase:
 
             # Setting checksum column values
             data[CHECKSUM_COLUMN] = checksums
-            data.reset_index(inplace=True)
+            data.reset_index(inplace=True, drop=True)
 
         return data
 
