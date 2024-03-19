@@ -154,7 +154,6 @@ class ServiceAlertsBase:
 
             # Setting checksum column values
             data[CHECKSUM_COLUMN] = checksums
-            data.reset_index(inplace=True, drop=True)
 
         return data
 
@@ -171,7 +170,7 @@ class ServiceAlertsBase:
         elif self.use_cached_values:
             logging.debug("(pre-cache append) data.shape={}".format(data.shape))
             logging.debug(f"(pre-cache append) data.columns={data.columns}")
-            data = pandas.concat([data, self.cache_data]).drop_duplicates(subset=[ID_COL], keep='first')
+            data = pandas.concat([data, self.cache_data])
             logging.debug(f"(post-cache append) data.columns={data.columns}")
             logging.debug("(post-cache append) data.shape={}".format(data.shape))
 
