@@ -245,7 +245,6 @@ def _get_selenium_driver() -> webdriver.Firefox:
 
     options = FirefoxOptions()
     options.add_argument("--headless")
-    os.environ["TMPDIR"] = "/home/gordon/snap/firefox/common/tmp"
 
     with proxy_utils.set_env_http_proxy():
         proxy_str = os.environ["HTTPS_PROXY"]
