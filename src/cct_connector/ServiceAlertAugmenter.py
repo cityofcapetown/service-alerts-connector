@@ -263,12 +263,18 @@ class ServiceAlertAugmenter(ServiceAlertBase.ServiceAlertsBase):
         source_index = source_data.index.values
         source_data = source_data.drop(
             # Removing fields that often confuse the LLM
-            columns=['Id', 'publish_date', 'effective_date', 'expiry_date', 'notification_number', 'status',
-                     'area_type']
+            columns=[
+                c for c in
+                (ID_COL, 'InputChecksum',
+                 'publish_date', 'effective_date', 'expiry_date',
+                 'notification_number',
+                 'status',
+                 'area_type',
+                 TWEET_COL, TOOT_COL,
+                 )
+                if c in source_data.columns
+            ]
         )
-        for col in [TWEET_COL, TOOT_COL, 'InputChecksum']:
-            if col in source_data.columns:
-                source_data = source_data.drop(columns=[col])
 
         # converting the timezone values to SAST
         for ts in ("start_timestamp", "forecast_end_timestamp"):
