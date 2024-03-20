@@ -13,13 +13,14 @@ FIXED_SN_MINIO_NAME = "sap-r3-connector.sanitised-service-notifications"
 
 # Other misc data constants
 LATEST_PREFIX = "current/"
-AUGMENTER_SALT = "service-alert-augmenter-2024-03-09T23:38"
+AUGMENTER_SALT = "service-alert-augmenter-2024-03-21T00:30"
 
 # Dataset columns
 CHECKSUM_COLUMN = "InputChecksum"
 TWEET_COL = "tweet_text"
 TOOT_COL = "toot_text"
 ID_COL = "Id"
+IMAGE_COL = "image_filename"
 
 # Output Data
 SERVICE_ALERTS_S3_BUCKET = "coct-service-alerts"

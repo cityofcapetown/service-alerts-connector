@@ -13,7 +13,7 @@ import jinja2
 import pandas
 
 from cct_connector import (
-    TWEET_COL,
+    TWEET_COL, IMAGE_COL,
     SA_EMAIL_NAME
 )
 from cct_connector.ServiceAlertBroadcaster import ServiceAlertOutputFileConfig, ServiceAlertBroadcaster, V0_COLS, ID_COL
@@ -30,6 +30,7 @@ ALERT_EMAIL_SUBJECT_PREFIX = "Service Alert"
 ALERT_EMAIL_TEMPLATE = "service_alert_tweet_emailer_template.html.jinja2"
 CITY_LOGO_FILENAME = "rect_city_logo.png"
 LINK_TEMPLATE = "https://ctapps.capetown.gov.za/sites/crhub/SitePages/ViewServiceAlert.aspx#?ID={alert_id}"
+IMAGE_LINK_TEMPLATE = "https://lake.capetown.gov.za/service-alerts.maps/{image_filename}"
 
 
 @dataclasses.dataclass
@@ -41,9 +42,9 @@ class ServiceAlertEmailConfig(ServiceAlertOutputFileConfig):
 
 EMAIL_COLS = [ID_COL, "service_area", "title", "description",
               "area_type", "area", "location",
-              "inferred_wards", "inferred_suburbs",
+              "inferred_wards", "inferred_suburbs", IMAGE_COL,
               "start_timestamp", "forecast_end_timestamp",
-              "planned", "request_number", "tweet_text"]
+              "planned", "request_number", TWEET_COL]
 
 SA_EMAIL_CONFIGS = [
     # # Planned Electricity Alerts
@@ -169,9 +170,14 @@ def _form_and_send_alerts_email(alert_dict: typing.Dict[str, typing.Any],
         email_date = pandas.Timestamp.now().isoformat()
         suggested_post = alert_dict[TWEET_COL]
         link_str = LINK_TEMPLATE.format(alert_id=alert_dict[ID_COL])
+        image_link_str = (
+            IMAGE_LINK_TEMPLATE.format(image_filename=alert_dict[IMAGE_COL])
+            if alert_dict[IMAGE_COL] is not None
+            else None
+        )
 
         # removing null fields and tweet col for email generation
-        fields_to_delete = [TWEET_COL]
+        fields_to_delete = [TWEET_COL, IMAGE_COL]
         for k, v in alert_dict.items():
             if not isinstance(v, typing.Collection) and pandas.isna(v):
                 fields_to_delete += [k]
@@ -203,6 +209,7 @@ def _form_and_send_alerts_email(alert_dict: typing.Dict[str, typing.Any],
                 request_id=email_request_id,
                 iso8601_timestamp=email_date,
                 bok_link=link_str,
+                image_path=image_link_str,
             )
 
         logging.debug("Creating email")

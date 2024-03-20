@@ -59,6 +59,20 @@
 
         </td>
     </tr>
+    {% if image_path %}
+    <tr>
+        <td>
+            <h2>Affected Area</h2>
+            <p>
+                Based upon the <strong>area type</strong> and <strong>area</strong> of this service alert, this issue is
+                localised to this area:
+            </p>
+            <p>
+                <img src="{{ image_path }}" style="width:600px;height:600px" width="600">
+            </p>
+        </td>
+    </tr>
+    {% endif %}
     <tr>
         <td>
             <h2>Why am I receiving this email?</h2>

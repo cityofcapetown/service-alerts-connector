@@ -1,21 +1,31 @@
+import base64
+import contextlib
 import functools
 import json
 import logging
+import os
+import pathlib
 import sys
+import tempfile
 import time
 import typing
 
-from db_utils import minio_utils
+import geopandas
+from db_utils import minio_utils, proxy_utils
 from geospatial_utils import mportal_utils
 import pandas
 import requests
+from selenium.webdriver import FirefoxOptions
+from selenium.webdriver.firefox.service import Service
+from seleniumwire import webdriver
+import shapely.wkt
 from tqdm.auto import tqdm
 
 from cct_connector import ServiceAlertBase
 from cct_connector import (
-    FIXED_SA_NAME, AUGMENTED_SA_NAME,
+    FIXED_SA_NAME, AUGMENTED_SA_NAME, SERVICE_ALERTS_PREFIX,
     AUGMENTER_SALT,
-    ID_COL, TWEET_COL, TOOT_COL,
+    ID_COL, TWEET_COL, TOOT_COL, IMAGE_COL,
 )
 
 # Internal LLM consts
@@ -46,6 +56,13 @@ AREA_LOOKUP = {
 }
 AREA_INFERENCE_THRESHOLD = 0.05
 
+AREA_WEBDRIVER_PATH = "/usr/bin/geckodriver"
+AREA_IMAGE_SALT = "2024-03-20T22:59"
+AREA_IMAGE_BUCKET = f"{SERVICE_ALERTS_PREFIX}.maps"
+AREA_IMAGE_FILENAME_TEMPLATE = "{area_type_str}_{area_str}_{salt_str}.png"
+AREA_IMAGE_DIM = 600
+AREA_IMAGE_DELAY = 5
+AREA_IMAGE_ZOOM = 14
 
 @functools.lru_cache()
 def _load_gis_layer(area_type: str, layer_query: str or None = None):
@@ -219,6 +236,86 @@ def _cptgpt_call_wrapper(message_dict: typing.Dict, http_session: requests.Sessi
     return None
 
 
+@contextlib.contextmanager
+def _get_selenium_driver() -> webdriver.Firefox:
+    logging.debug("Setting up Selenium webdriver...")
+
+    # Turning down some of the loggers
+    service = Service(executable_path=AREA_WEBDRIVER_PATH)
+
+    options = FirefoxOptions()
+    options.add_argument("--headless")
+    os.environ["TMPDIR"] = "/home/gordon/snap/firefox/common/tmp"
+
+    with proxy_utils.set_env_http_proxy():
+        proxy_str = os.environ["HTTPS_PROXY"]
+
+    wire_options = {
+        'proxy': {
+            'http': proxy_str,
+            'https': proxy_str,
+            'no_proxy': f'localhost,127.0.0.1'
+        }
+    }
+
+    browser = webdriver.Firefox(service=service,
+                                options=options,
+                                seleniumwire_options=wire_options)
+    browser.implicitly_wait(300)
+    logging.debug("...Setup Selenium webdriver")
+
+    # Quietening some loggers
+    for name in logging.root.manager.loggerDict:
+        if (name.startswith("urllib3") or name.startswith("selenium") or
+                name.startswith("hpack") or name.startswith("server")):
+            logging.getLogger(name).setLevel(logging.WARNING)
+
+    yield browser
+
+    browser.quit()
+
+
+def _generate_screenshot_of_area(area_gdf: geopandas.GeoDataFrame, area_filename: str) -> bool:
+    m = area_gdf.explore(max_zoom=AREA_IMAGE_ZOOM)
+
+    with tempfile.TemporaryDirectory() as temp_dir, _get_selenium_driver() as driver:
+        driver.set_window_size(AREA_IMAGE_DIM, AREA_IMAGE_DIM)
+        local_image_path = pathlib.Path(temp_dir) / area_filename
+        local_html_path = str(local_image_path).replace(".png", ".html")
+        m.save(local_html_path)
+        logging.debug(f"Map saved to {local_html_path}")
+
+        logging.debug(f"Loading map from {local_html_path}...")
+        driver.get(f"file://{local_html_path}")
+        time.sleep(AREA_IMAGE_DELAY)
+        logging.debug(f"...Loaded map from {local_html_path}")
+        driver.save_screenshot(local_image_path)
+        logging.debug(f"Saved to {local_image_path}")
+
+        logging.debug(f"Uploading to {AREA_IMAGE_BUCKET}")
+        return minio_utils.file_to_minio(local_image_path, AREA_IMAGE_BUCKET)
+
+
+def _generate_image_link(area_type: str, area: str, wkt_str: str) -> str:
+    area_image_filename = AREA_IMAGE_FILENAME_TEMPLATE.format(
+        salt_str=base64.b64encode(bytes(AREA_IMAGE_SALT, 'utf-8')).decode(),
+        area_type_str=base64.b64encode(bytes(area_type, 'utf-8')).decode(),
+        area_str=base64.b64encode(bytes(area, 'utf-8')).decode(),
+    )
+    logging.debug(f"{AREA_IMAGE_SALT=}, {area_type=}, {area=}, {area_image_filename=}")
+
+    for _ in minio_utils.list_objects_in_bucket(AREA_IMAGE_BUCKET, minio_prefix_override=area_image_filename):
+        logging.debug(f"Cache hit on '{area_image_filename}', proceeding without regenerating the image")
+        return area_image_filename
+
+    logging.debug(f"Cache miss on '{area_image_filename}', generating screenshot...")
+    area_gdf = geopandas.GeoDataFrame(geometry=[shapely.wkt.loads(wkt_str)], crs="EPSG:4326")
+    _generate_screenshot_of_area(area_gdf, area_image_filename)
+    logging.debug(f"Screenshot generate for '{area_image_filename}'")
+
+    return area_image_filename
+
+
 class ServiceAlertAugmenter(ServiceAlertBase.ServiceAlertsBase):
     def __init__(self, minio_read_name=FIXED_SA_NAME, minio_write_name=AUGMENTED_SA_NAME):
         super().__init__(None, None, minio_utils.DataClassification.LAKE,
@@ -269,7 +366,7 @@ class ServiceAlertAugmenter(ServiceAlertBase.ServiceAlertsBase):
                  'publish_date', 'effective_date', 'expiry_date',
                  'notification_number',
                  'status',
-                 'area_type',
+                 'area_type', 'geospatial_footprint', IMAGE_COL,
                  TWEET_COL, TOOT_COL,
                  )
                 if c in source_data.columns
@@ -339,6 +436,17 @@ class ServiceAlertAugmenter(ServiceAlertBase.ServiceAlertsBase):
         if not footprint_lookup.empty:
             self.data["geospatial_footprint"] = footprint_lookup
 
+    def lookup_geospatial_image_link(self):
+        image_filename_lookup = self.data.query(
+            "geospatial_footprint.notna()"
+        ).apply(
+            lambda row: _generate_image_link(row['area_type'], row['area'], row['geospatial_footprint']),
+            axis=1
+        )
+
+        if not image_filename_lookup.empty:
+            self.data[IMAGE_COL] = image_filename_lookup
+
     def infer_area(self, layer_name: str, layer_col: str, data_col_name: str, layer_query: str or None = None):
         layer_gdf = _load_gis_layer(layer_name, layer_query)[[layer_col, "WKT"]].assign(
             # getting total area before intersect operation
@@ -405,6 +513,10 @@ if __name__ == "__main__":
     logging.info("Look[ing] up Geospatial Footprint...")
     sa_augmenter.lookup_geospatial_footprint()
     logging.info("...Look[ed] up Geospatial Footprint")
+
+    logging.info("Look[ing] up Image Filenames...")
+    sa_augmenter.lookup_geospatial_image_link()
+    logging.info("...Look[ed] up Image Filenames")
 
     logging.info("Inferr[ing] Suburbs...")
     sa_augmenter.infer_area("Official planning suburbs", "OFC_SBRB_NAME", "inferred_suburbs")
