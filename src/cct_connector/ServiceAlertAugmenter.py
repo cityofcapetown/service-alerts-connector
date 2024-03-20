@@ -494,7 +494,7 @@ class ServiceAlertAugmenter(ServiceAlertBase.ServiceAlertsBase):
 
 
 if __name__ == "__main__":
-    logging.basicConfig(level=logging.DEBUG,
+    logging.basicConfig(level=logging.INFO,
                         format='%(asctime)s-%(module)s.%(funcName)s [%(levelname)s]: %(message)s')
 
     logging.info("G[etting] data from Minio...")
