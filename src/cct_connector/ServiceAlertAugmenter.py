@@ -80,8 +80,8 @@ def _load_gis_layer(area_type: str, layer_query: str or None = None):
 def _cptgpt_call_wrapper(message_dict: typing.Dict, http_session: requests.Session,
                          max_post_length: int) -> str or None:
     system_prompt = (
-        f'You draft {max_post_length} or less character social media posts about potential City of Cape Town '
-        'service outage or update, using the details in provided JSON objects. '
+        f'Please reason step by step to draft {max_post_length} or less character social media posts about potential '
+        'City of Cape Town service outage or update, using the details in provided JSON objects. '
         'The "service_area" field refers to the responsible department. '
         'Prioritise the location, date and time information '
         '- you don\'t have to mention all of the more technical details.'
@@ -97,7 +97,7 @@ def _cptgpt_call_wrapper(message_dict: typing.Dict, http_session: requests.Sessi
         "messages": [
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": (
-                '{"service_area":"Electricity","title":"Cable stolen","description":"Cable stolen","area":"Lwandle",'
+                '{"service_area":"Electricity","title":"Cable stolen","description":"Cable stolen","area":"LWANDLE",'
                 ' "location":"Noxolost&surr…","start_timestamp":"2023-09-21T09:00:00+02:00",'
                 ' "forecast_end_timestamp":"2023-09-23T13:00:00+02:00","planned":false,"request_number":"9115677540"}'
             )},
