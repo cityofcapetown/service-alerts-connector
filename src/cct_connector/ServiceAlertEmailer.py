@@ -11,6 +11,7 @@ from db_utils import exchange_utils, minio_utils, proxy_utils, secrets_utils
 from exchangelib import HTMLBody, FileAttachment, Message
 import jinja2
 import pandas
+import requests
 
 from cct_connector import (
     TWEET_COL, IMAGE_COL,
@@ -30,6 +31,7 @@ ALERT_EMAIL_SUBJECT_PREFIX = "Service Alert"
 ALERT_EMAIL_TEMPLATE = "service_alert_tweet_emailer_template.html.jinja2"
 CITY_LOGO_FILENAME = "rect_city_logo.png"
 LINK_TEMPLATE = "https://ctapps.capetown.gov.za/sites/crhub/SitePages/ViewServiceAlert.aspx#?ID={alert_id}"
+AREA_IMAGE_FILENAME = "area_image_filename.png"
 IMAGE_LINK_TEMPLATE = "https://lake.capetown.gov.za/service-alerts.maps/{image_filename}"
 
 
@@ -47,19 +49,19 @@ EMAIL_COLS = [ID_COL, "service_area", "title", "description",
               "planned", "request_number", TWEET_COL]
 
 SA_EMAIL_CONFIGS = [
-    # # Planned Electricity Alerts
+    # Planned Electricity Alerts
     ServiceAlertEmailConfig("current", True, "v1", EMAIL_COLS,
                             (("Mary-Ann", "MaryAnn.FransmanJohannes@capetown.gov.za"),
                              ("Gordon", "gordon.inggs@capetown.gov.za"),
                              (None, "ElectricityMaintenance.Outages@capetown.gov.za"),),
                             "all planned electricity work",
                             "service_area == 'Electricity'"),
-    # # All Planned Alerts
+    # All Planned Alerts
     ServiceAlertEmailConfig("current", True, "v1", EMAIL_COLS,
                             (("Social Media Team", "social.media@capetown.gov.za"),),
                             "all planned work",
                             None),
-    # # Unplanned Alerts
+    # Unplanned Alerts
     ServiceAlertEmailConfig("current", False, "v1", EMAIL_COLS,
                             (("Social Media Team", "social.media@capetown.gov.za"),),
                             "all unplanned alerts",
@@ -146,18 +148,18 @@ SA_EMAIL_CONFIGS = [
 ]
 
 
-@functools.lru_cache(1)
-def _get_logo_attachment() -> FileAttachment:
-    logo_path = RESOURCES_PATH / CITY_LOGO_FILENAME
-    with open(logo_path, "rb") as logo_file:
-        logo_attachment = FileAttachment(name=CITY_LOGO_FILENAME, content=logo_file.read(), is_inline=True)
+@functools.lru_cache()
+def _get_image_attachment(image_path: pathlib.Path, attachment_name: str) -> FileAttachment:
+    with open(image_path, "rb") as image_file:
+        logo_attachment = FileAttachment(name=attachment_name, content=image_file.read(), is_inline=True)
 
     return logo_attachment
 
 
 def _form_and_send_alerts_email(alert_dict: typing.Dict[str, typing.Any],
                                 email_focus: str,
-                                recipients: typing.Tuple[typing.Tuple[str, str]]) -> str:
+                                recipients: typing.Tuple[typing.Tuple[str, str]],
+                                http_session: requests.Session) -> str:
     secrets = secrets_utils.get_secrets()
 
     with proxy_utils.set_env_http_proxy():
@@ -219,7 +221,18 @@ def _form_and_send_alerts_email(alert_dict: typing.Dict[str, typing.Any],
                           to_recipients=[email for _, email in recipients],
                           reply_to=DS_REPLY_TO)
 
-        message.attach(_get_logo_attachment())
+        # Attaching logo
+        logo_path = RESOURCES_PATH / CITY_LOGO_FILENAME
+        message.attach(_get_image_attachment(logo_path, CITY_LOGO_FILENAME))
+
+        # Attaching area image
+        if image_link_str:
+            with tempfile.NamedTemporaryFile("wb") as image_temp_file:
+                image_temp_file.write(http_session.get(image_link_str).content)
+                image_temp_file.flush()
+
+                message.attach(_get_image_attachment(pathlib.Path(image_temp_file.name).absolute(),
+                                                     AREA_IMAGE_FILENAME))
 
         logging.debug("Sending email")
         message.send()
@@ -232,41 +245,40 @@ class ServiceAlertEmailer(ServiceAlertBroadcaster):
         super().__init__(minio_write_name=minio_write_name)
 
     def send_alert_emails(self):
-        for config, (_, alert_df) in zip(SA_EMAIL_CONFIGS,
-                                         self._service_alerts_generator(SA_EMAIL_CONFIGS)):
-            config_hash = hashlib.sha256(str.encode(str(config))).hexdigest()
+        with proxy_utils.setup_http_session() as http:
+            for config, (_, alert_df) in zip(SA_EMAIL_CONFIGS,
+                                             self._service_alerts_generator(SA_EMAIL_CONFIGS)):
+                config_hash = hashlib.sha256(str.encode(str(config))).hexdigest()
 
-            if config.additional_filter:
-                alert_df = alert_df.query(config.additional_filter)
+                if config.additional_filter:
+                    alert_df = alert_df.query(config.additional_filter)
 
-            if alert_df.empty:
-                logging.warning(f"{config=} results in an empty set - skipping!")
-                continue
-
-            for alert_dict in alert_df.to_dict(orient="records"):
-                email_filename = f"{config_hash}_{alert_dict[ID_COL]}.html"
-
-                if alert_dict[TWEET_COL] is None:
-                    logging.warning(f"Skipping empty post - {alert_dict[ID_COL]}")
+                if alert_df.empty:
+                    logging.warning(f"{config=} results in an empty set - skipping!")
                     continue
 
-                logging.debug("Checking if email has already been sent...")
-                email_check = list(minio_utils.list_objects_in_bucket(self.minio_write_name,
-                                                                      minio_prefix_override=email_filename))
+                for alert_dict in alert_df.to_dict(orient="records"):
+                    email_filename = f"{config_hash}_{alert_dict[ID_COL]}.html"
 
-                if len(email_check) > 0:
-                    logging.warning(f"Skipping {alert_dict[ID_COL]} for this config - already sent!")
-                    continue
+                    if alert_dict[TWEET_COL] is None:
+                        logging.warning(f"Skipping empty post - {alert_dict[ID_COL]}")
+                        continue
 
-                email_message = _form_and_send_alerts_email(alert_dict, config.email_focus, config.receivers)
+                    logging.debug("Checking if email has already been sent...")
+                    for _ in minio_utils.list_objects_in_bucket(self.minio_write_name,
+                                                                minio_prefix_override=email_filename):
+                        logging.warning(f"Skipping {alert_dict[ID_COL]} for this config - already sent!")
+                        continue
 
-                logging.debug("Backing up email")
-                with tempfile.TemporaryDirectory() as tempdir:
-                    local_path = pathlib.Path(tempdir) / email_filename
-                    with open(local_path, "w") as local_file:
-                        local_file.write(email_message)
+                    email_message = _form_and_send_alerts_email(alert_dict, config.email_focus, config.receivers, http)
 
-                    minio_utils.file_to_minio(local_path, self.minio_write_name)
+                    logging.debug("Backing up email")
+                    with tempfile.TemporaryDirectory() as tempdir:
+                        local_path = pathlib.Path(tempdir) / email_filename
+                        with open(local_path, "w") as local_file:
+                            local_file.write(email_message)
+
+                        minio_utils.file_to_minio(local_path, self.minio_write_name)
 
 
 if __name__ == "__main__":
