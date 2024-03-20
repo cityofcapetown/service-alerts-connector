@@ -15,7 +15,7 @@ from cct_connector import ServiceAlertBase
 from cct_connector import (
     FIXED_SA_NAME, AUGMENTED_SA_NAME,
     AUGMENTER_SALT,
-    TWEET_COL, TOOT_COL,
+    ID_COL, TWEET_COL, TOOT_COL,
 )
 
 # Internal LLM consts
@@ -226,7 +226,7 @@ class ServiceAlertAugmenter(ServiceAlertBase.ServiceAlertsBase):
                          use_cached_values=True, stage_cache_salt=AUGMENTER_SALT)
 
         # all data is reverse sorted
-        self.data = self.get_data_from_minio().sort_values(by=['publish_date'], ascending=False)
+        self.data = self.get_data_from_minio().sort_values(by=['publish_date'], ascending=False).set_index(ID_COL)
 
         # if there aren't new values, take some undrafted ones from the cache
         less_than_limit = DRAFT_LIMIT - self.data.shape[0]
@@ -409,5 +409,5 @@ if __name__ == "__main__":
     logging.info("...Inferr[ed] Wards")
 
     logging.info("Wr[iting] to Minio...")
-    sa_augmenter.write_data_to_minio(sa_augmenter.data)
+    sa_augmenter.write_data_to_minio(sa_augmenter.data.reset_index())
     logging.info("...Wr[ote] to Minio")
