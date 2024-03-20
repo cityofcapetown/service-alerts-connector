@@ -134,6 +134,19 @@ SA_EMAIL_CONFIGS = [
                              ("Muhammed", "muhammed.ockards@capetown.gov.za"),),
                             "all planned works that might affect Ward 115",
                             "inferred_wards.astype('str').str.contains('\W115\W') and area_type != 'Citywide'"),
+    # Somerset WEst
+    ServiceAlertEmailConfig("current", False, "v1", EMAIL_COLS,
+                            (("Delyno", "delyno.dutoit@capetown.gov.za"),),
+                            "all unplanned alerts that affect Somerset West",
+                            "(inferred_suburbs.astype('str').str.lower().str.contains('\Wsomerset\Wwest\W') or "
+                            " area.astype('str').str.lower().str.contains('somerset\Wwest')) and "
+                            "area_type != 'Citywide'"),
+    ServiceAlertEmailConfig("current", True, "v1", EMAIL_COLS,
+                            (("Delyno", "delyno.dutoit@capetown.gov.za"),),
+                            "all planned works that affect Somerset West",
+                            "(inferred_suburbs.astype('str').str.lower().str.contains('\Wsomerset\Wwest\W') or "
+                            " area.astype('str').str.lower().str.contains('somerset\Wwest')) and "
+                            "area_type != 'Citywide'"),
     # Citywide
     ServiceAlertEmailConfig("current", False, "v1", EMAIL_COLS,
                             (("Gordon", "gordon.inggs@capetown.gov.za"),
