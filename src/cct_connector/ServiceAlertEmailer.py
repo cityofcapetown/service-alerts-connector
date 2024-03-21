@@ -248,7 +248,7 @@ def _form_and_send_alerts_email(alert_dict: typing.Dict[str, typing.Any],
                                                      AREA_IMAGE_FILENAME))
 
         logging.debug("Sending email")
-        # message.send()
+        message.send()
 
         return message_body
 
