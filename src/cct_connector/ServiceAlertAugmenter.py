@@ -319,7 +319,7 @@ class ServiceAlertAugmenter(ServiceAlertBase.ServiceAlertsBase):
     def __init__(self, minio_read_name=FIXED_SA_NAME, minio_write_name=AUGMENTED_SA_NAME):
         super().__init__(None, None, minio_utils.DataClassification.LAKE,
                          minio_read_name=minio_read_name, minio_write_name=minio_write_name,
-                         use_cached_values=True, stage_cache_salt=AUGMENTER_SALT)
+                         use_cached_values=True, stage_cache_salt=AUGMENTER_SALT, index_col=ID_COL)
 
         # all data is reverse sorted
         self.data = self.get_data_from_minio().sort_values(by=['publish_date'], ascending=False)

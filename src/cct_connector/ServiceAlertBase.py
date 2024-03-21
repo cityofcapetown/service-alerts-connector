@@ -67,7 +67,7 @@ class ServiceAlertsBase:
     def __init__(self, minio_read_access, minio_read_secret, minio_read_classification, minio_read_name,
                  minio_write_access=None, minio_write_secret=None, minio_write_classification=None,
                  minio_write_name=None, stage_cache_salt="", use_cached_values=True,
-                 index_col=ID_COL):
+                 index_col=None):
         self.minio_read_access = minio_read_access
         self.minio_read_secret = minio_read_secret
         self.minio_read_classification = minio_read_classification
@@ -103,7 +103,10 @@ class ServiceAlertsBase:
             minio_key=self.minio_read_access,
             minio_secret=self.minio_read_secret,
             data_classification=self.minio_read_classification,
-        ).set_index(self.index_col)
+        )
+        if self.index_col and self.index_col in data.columns:
+            data.set_index(self.index_col, inplace=True)
+
         logging.debug(f"data.columns={data.columns}")
 
         if "index" in data.columns:

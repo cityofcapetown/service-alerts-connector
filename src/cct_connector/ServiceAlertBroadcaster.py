@@ -56,7 +56,12 @@ class ServiceAlertBroadcaster(ServiceAlertBase.ServiceAlertsBase):
                          minio_read_name=minio_read_name, minio_write_name=minio_write_name,
                          use_cached_values=False)
 
-        self.data = self.get_data_from_minio().reset_index()
+        self.data = self.get_data_from_minio()
+
+        if ID_COL in self.data.columns:
+            self.data.drop(columns=[ID_COL], inplace=True)
+
+        self.data.reset_index(names=[ID_COL], inplace=True)
 
     def _service_alerts_generator(self, configs=BOK_CONFIGS):
         now = pd.Timestamp.now(tz="Africa/Johannesburg")

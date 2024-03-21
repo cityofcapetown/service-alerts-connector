@@ -13,7 +13,7 @@ FIXED_SN_MINIO_NAME = "sap-r3-connector.sanitised-service-notifications"
 
 # Other misc data constants
 LATEST_PREFIX = "current/"
-AUGMENTER_SALT = "service-alert-augmenter-2024-03-21T00:30"
+AUGMENTER_SALT = "service-alert-augmenter-2024-03-21T02:30"
 
 # Dataset columns
 CHECKSUM_COLUMN = "InputChecksum"
