@@ -322,7 +322,7 @@ class ServiceAlertAugmenter(ServiceAlertBase.ServiceAlertsBase):
                          use_cached_values=True, stage_cache_salt=AUGMENTER_SALT)
 
         # all data is reverse sorted
-        self.data = self.get_data_from_minio().sort_values(by=['publish_date'], ascending=False).set_index(ID_COL)
+        self.data = self.get_data_from_minio().sort_values(by=['publish_date'], ascending=False)
 
         # if there aren't new values, take some undrafted ones from the cache
         less_than_limit = DRAFT_LIMIT - self.data.shape[0]
@@ -526,5 +526,5 @@ if __name__ == "__main__":
     logging.info("...Inferr[ed] Wards")
 
     logging.info("Wr[iting] to Minio...")
-    sa_augmenter.write_data_to_minio(sa_augmenter.data.reset_index())
+    sa_augmenter.write_data_to_minio(sa_augmenter.data)
     logging.info("...Wr[ote] to Minio")

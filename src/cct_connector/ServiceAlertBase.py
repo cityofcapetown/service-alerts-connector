@@ -19,9 +19,7 @@ def _calculate_checksums(args):
     checksums = data_df.apply(
         lambda row: hashlib.md5(
             str.encode("".join(map(str, row.values)) + stage_salt)
-        ).hexdigest() if row["Id"] not in {
-            # put IDs here if you want to force reprocessing
-        } else None,
+        ).hexdigest(),
         axis='columns'
     )
 
@@ -68,7 +66,8 @@ class ServiceAlertsBase:
 
     def __init__(self, minio_read_access, minio_read_secret, minio_read_classification, minio_read_name,
                  minio_write_access=None, minio_write_secret=None, minio_write_classification=None,
-                 minio_write_name=None, stage_cache_salt="", use_cached_values=True):
+                 minio_write_name=None, stage_cache_salt="", use_cached_values=True,
+                 index_col=ID_COL):
         self.minio_read_access = minio_read_access
         self.minio_read_secret = minio_read_secret
         self.minio_read_classification = minio_read_classification
@@ -82,6 +81,7 @@ class ServiceAlertsBase:
         self.minio_write_name = minio_read_name if minio_write_name is None else minio_write_name
         self.stage_cache_salt = stage_cache_salt
         self.use_cached_values = use_cached_values
+        self.index_col = index_col
 
         # Internal class attributes
         self.opportunistic_skip = True
@@ -103,7 +103,7 @@ class ServiceAlertsBase:
             minio_key=self.minio_read_access,
             minio_secret=self.minio_read_secret,
             data_classification=self.minio_read_classification,
-        )
+        ).set_index(self.index_col)
         logging.debug(f"data.columns={data.columns}")
 
         if "index" in data.columns:
