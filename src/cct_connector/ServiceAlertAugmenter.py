@@ -62,7 +62,7 @@ AREA_IMAGE_BUCKET = f"{SERVICE_ALERTS_PREFIX}.maps"
 AREA_IMAGE_FILENAME_TEMPLATE = "{area_type_str}_{area_str}_{salt_str}.png"
 AREA_IMAGE_DIM = 600
 AREA_IMAGE_DELAY = 5
-AREA_IMAGE_ZOOM = 14
+AREA_IMAGE_ZOOM = 13
 
 @functools.lru_cache()
 def _load_gis_layer(area_type: str, layer_query: str or None = None):
