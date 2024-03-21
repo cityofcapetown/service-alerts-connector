@@ -436,15 +436,16 @@ class ServiceAlertAugmenter(ServiceAlertBase.ServiceAlertsBase):
             self.data["geospatial_footprint"] = footprint_lookup
 
     def lookup_geospatial_image_link(self):
-        image_filename_lookup = self.data.query(
-            "geospatial_footprint.notna()"
-        ).apply(
-            lambda row: _generate_image_link(row['area_type'], row['area'], row['geospatial_footprint']),
-            axis=1
-        )
+        if "geospatial_footprint" in self.data.columns:
+            image_filename_lookup = self.data.query(
+                "geospatial_footprint.notna()"
+            ).apply(
+                lambda row: _generate_image_link(row['area_type'], row['area'], row['geospatial_footprint']),
+                axis=1
+            )
 
-        if not image_filename_lookup.empty:
-            self.data[IMAGE_COL] = image_filename_lookup
+            if not image_filename_lookup.empty:
+                self.data[IMAGE_COL] = image_filename_lookup
 
     def infer_area(self, layer_name: str, layer_col: str, data_col_name: str, layer_query: str or None = None):
         layer_gdf = _load_gis_layer(layer_name, layer_query)[[layer_col, "WKT"]].assign(
