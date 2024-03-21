@@ -248,7 +248,7 @@ def _form_and_send_alerts_email(alert_dict: typing.Dict[str, typing.Any],
                                                      AREA_IMAGE_FILENAME))
 
         logging.debug("Sending email")
-        message.send()
+        # message.send()
 
         return message_body
 
@@ -278,9 +278,14 @@ class ServiceAlertEmailer(ServiceAlertBroadcaster):
                         continue
 
                     logging.debug("Checking if email has already been sent...")
+                    skip_flag = False
                     for _ in minio_utils.list_objects_in_bucket(self.minio_write_name,
                                                                 minio_prefix_override=email_filename):
                         logging.warning(f"Skipping {alert_dict[ID_COL]} for this config - already sent!")
+                        skip_flag = True
+                        break
+
+                    if skip_flag:
                         continue
 
                     email_message = _form_and_send_alerts_email(alert_dict, config.email_focus, config.receivers, http)
