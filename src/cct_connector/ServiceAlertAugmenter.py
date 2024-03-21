@@ -266,7 +266,7 @@ def _get_selenium_driver() -> webdriver.Firefox:
     # Quietening some loggers
     for name in logging.root.manager.loggerDict:
         if (name.startswith("urllib3") or name.startswith("selenium") or
-                name.startswith("hpack") or name.startswith("server")):
+                name.startswith("hpack") or name.startswith("server") or name.startswith("ssa")):
             logging.getLogger(name).setLevel(logging.WARNING)
 
     yield browser
@@ -494,7 +494,7 @@ class ServiceAlertAugmenter(ServiceAlertBase.ServiceAlertsBase):
 
 
 if __name__ == "__main__":
-    logging.basicConfig(level=logging.INFO,
+    logging.basicConfig(level=logging.DEBUG,
                         format='%(asctime)s-%(module)s.%(funcName)s [%(levelname)s]: %(message)s')
 
     logging.info("G[etting] data from Minio...")
