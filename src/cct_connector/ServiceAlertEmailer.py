@@ -39,7 +39,23 @@ IMAGE_LINK_TEMPLATE = "https://lake.capetown.gov.za/service-alerts.maps/{image_f
 class ServiceAlertEmailConfig(ServiceAlertOutputFileConfig):
     receivers: typing.Tuple[typing.Tuple[str or None, str], ...]
     email_focus: str
-    additional_filter: str or None
+    additional_filter: str or typing.Callable or None
+
+    def apply_additional_filter(self, data_df: pandas.DataFrame) -> pandas.DataFrame:
+        logging.debug(f"( pre-fitler) {data_df.shape=}")
+        filtered_df = data_df.copy()
+
+        if isinstance(self.additional_filter, str):
+            logging.debug("Applying query")
+            filtered_df = data_df.query(self.additional_filter).copy()
+        if isinstance(self.additional_filter, typing.Callable):
+            filtered_df = data_df.loc[
+                data_df.apply(self.additional_filter, axis=1)
+            ].copy()
+
+        logging.debug(f"(post filter) {filtered_df.shape=}")
+
+        return filtered_df
 
 
 EMAIL_COLS = [ID_COL, "service_area", "title", "description",
@@ -47,6 +63,18 @@ EMAIL_COLS = [ID_COL, "service_area", "title", "description",
               "inferred_wards", "inferred_suburbs", IMAGE_COL,
               "start_timestamp", "forecast_end_timestamp",
               "planned", "request_number", TWEET_COL]
+
+
+def _ward_curry_pot(ward_number: str) -> typing.Callable[[pandas.Series], bool]:
+    # creating curried filter function
+    def _ward_filter(row: pandas.Series) -> bool:
+        return (row["inferred_wards"] is not None and
+                ward_number in row["inferred_wards"] and
+                # citywide alerts not to be trusted, yet
+                row["area_type"] != "Citywide")
+
+    return _ward_filter
+
 
 SA_EMAIL_CONFIGS = [
     # Planned Electricity Alerts
@@ -75,7 +103,7 @@ SA_EMAIL_CONFIGS = [
                              ("Kathryn", "kathryn.mcdermott@capetown.gov.za"),
                              ("Muhammed", "muhammed.ockards@capetown.gov.za"),),
                             "all unplanned alerts that might affect Ward 115",
-                            "inferred_wards.astype('str').str.contains('\\b115\\b') and area_type != 'Citywide'"),
+                            _ward_curry_pot("115")),
     ServiceAlertEmailConfig("current", True, "v1", EMAIL_COLS,
                             (("Cllr McMahon", "Ian.McMahon@capetown.gov.za"),
                              ("Girshwin", "girshwin.fouldien@capetown.gov.za"),
@@ -85,7 +113,7 @@ SA_EMAIL_CONFIGS = [
                              ("Kathryn", "kathryn.mcdermott@capetown.gov.za"),
                              ("Muhammed", "muhammed.ockards@capetown.gov.za"),),
                             "all planned works that might affect Ward 115",
-                            "inferred_wards.astype('str').str.contains('\\b115\\b') and area_type != 'Citywide'"),
+                            _ward_curry_pot("115")),
     # Ward 16
     ServiceAlertEmailConfig("current", False, "v1", EMAIL_COLS,
                             (("Cllr Barends", "ursula.barends@capetown.gov.za"),
@@ -96,7 +124,7 @@ SA_EMAIL_CONFIGS = [
                              ("Kathryn", "kathryn.mcdermott@capetown.gov.za"),
                              ("Muhammed", "muhammed.ockards@capetown.gov.za"),),
                             "all unplanned alerts that might affect Ward 16",
-                            "inferred_wards.astype('str').str.contains('\\b16\\b') and area_type != 'Citywide'"),
+                            _ward_curry_pot("16")),
     ServiceAlertEmailConfig("current", True, "v1", EMAIL_COLS,
                             (("Cllr Barends", "ursula.barends@capetown.gov.za"),
                              ("Lorraine", "Lorraine.Frost@capetown.gov.za"),
@@ -106,7 +134,7 @@ SA_EMAIL_CONFIGS = [
                              ("Kathryn", "kathryn.mcdermott@capetown.gov.za"),
                              ("Muhammed", "muhammed.ockards@capetown.gov.za"),),
                             "all planned works that might affect Ward 16",
-                            "inferred_wards.astype('str').str.contains('\\b16\\b') and area_type != 'Citywide'"),
+                            _ward_curry_pot("16")),
     # Ward 77
     ServiceAlertEmailConfig("current", False, "v1", EMAIL_COLS,
                             (("Cllr Higham", "Francine.Higham@capetown.gov.za"),
@@ -117,7 +145,7 @@ SA_EMAIL_CONFIGS = [
                              ("Kathryn", "kathryn.mcdermott@capetown.gov.za"),
                              ("Muhammed", "muhammed.ockards@capetown.gov.za"),),
                             "all unplanned alerts that might affect Ward 77",
-                            "inferred_wards.astype('str').str.contains('\\b77\\b') and area_type != 'Citywide'"),
+                            _ward_curry_pot("77")),
     ServiceAlertEmailConfig("current", True, "v1", EMAIL_COLS,
                             (("Cllr Higham", "Francine.Higham@capetown.gov.za"),
                              ("Girshwin", "girshwin.fouldien@capetown.gov.za"),
@@ -127,7 +155,7 @@ SA_EMAIL_CONFIGS = [
                              ("Kathryn", "kathryn.mcdermott@capetown.gov.za"),
                              ("Muhammed", "muhammed.ockards@capetown.gov.za"),),
                             "all planned works that might affect Ward 77",
-                            "inferred_wards.astype('str').str.contains('\\b77\\b') and area_type != 'Citywide'"),
+                            _ward_curry_pot("77")),
     # Ward 21
     ServiceAlertEmailConfig("current", False, "v1", EMAIL_COLS,
                             (("Cllr Terblanche", "hendri.terblanche@capetown.gov.za"),
@@ -138,7 +166,7 @@ SA_EMAIL_CONFIGS = [
                              ("Kathryn", "kathryn.mcdermott@capetown.gov.za"),
                              ("Muhammed", "muhammed.ockards@capetown.gov.za"),),
                             "all unplanned alerts that might affect Ward 21",
-                            "inferred_wards.astype('str').str.contains('\\b21\\b') and area_type != 'Citywide'"),
+                            _ward_curry_pot("21")),
     ServiceAlertEmailConfig("current", True, "v1", EMAIL_COLS,
                             (("Cllr Terblanche", "hendri.terblanche@capetown.gov.za"),
                              ("Carin", "Carin.Viljoen@capetown.gov.za"),
@@ -148,7 +176,7 @@ SA_EMAIL_CONFIGS = [
                              ("Kathryn", "kathryn.mcdermott@capetown.gov.za"),
                              ("Muhammed", "muhammed.ockards@capetown.gov.za"),),
                             "all planned works that might affect Ward 21",
-                            "inferred_wards.astype('str').str.contains('\\b21\\b') and area_type != 'Citywide'"),
+                            _ward_curry_pot("21")),
     # Somerset West
     ServiceAlertEmailConfig("current", False, "v1", EMAIL_COLS,
                             (("Delyno", "delyno.dutoit@capetown.gov.za"),),
@@ -277,12 +305,10 @@ class ServiceAlertEmailer(ServiceAlertBroadcaster):
             for config, (_, alert_df) in zip(SA_EMAIL_CONFIGS,
                                              self._service_alerts_generator(SA_EMAIL_CONFIGS)):
                 config_hash = hashlib.sha256(str.encode(str(config))).hexdigest()
-
-                if config.additional_filter:
-                    alert_df = alert_df.query(config.additional_filter)
+                alert_df = config.apply_additional_filter(alert_df)
 
                 if alert_df.empty:
-                    logging.warning(f"{config=} results in an empty set - skipping!")
+                    logging.warning(f"Nothing more to do for {config=}, skipping!")
                     continue
 
                 for alert_dict in alert_df.to_dict(orient="records"):
