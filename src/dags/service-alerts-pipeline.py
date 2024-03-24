@@ -31,4 +31,4 @@ with kubernetes_dag.airflowK8sDAG("service-alerts-pipeline",
                                                resources=kubernetes_dag.LIGHT_RESOURCES)
 
     # Dependencies
-    fetch_data_operator >> fix_data_operator >> augment_data_operator >> broadcast_data_operator >> email_data_operator
+    fetch_data_operator >> fix_data_operator >> augment_data_operator >> (broadcast_data_operator, email_data_operator)
