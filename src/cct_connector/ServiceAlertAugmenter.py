@@ -275,7 +275,7 @@ def _get_selenium_driver() -> webdriver.Firefox:
 
 
 def _generate_screenshot_of_area(area_gdf: geopandas.GeoDataFrame, area_filename: str) -> bool:
-    m = area_gdf.explore(max_zoom=AREA_IMAGE_ZOOM)
+    m = area_gdf.explore(max_zoom=AREA_IMAGE_ZOOM, zoom_control=False)
 
     with tempfile.TemporaryDirectory() as temp_dir, _get_selenium_driver() as driver:
         driver.set_window_size(AREA_IMAGE_DIM, AREA_IMAGE_DIM)
