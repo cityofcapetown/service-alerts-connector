@@ -304,7 +304,8 @@ class ServiceAlertEmailer(ServiceAlertBroadcaster):
         with proxy_utils.setup_http_session() as http:
             for config, (_, alert_df) in zip(SA_EMAIL_CONFIGS,
                                              self._service_alerts_generator(SA_EMAIL_CONFIGS)):
-                config_hash = hashlib.sha256(str.encode(str(config))).hexdigest()
+                config_hash = hashlib.sha256(str.encode(str(config.receivers) +
+                                                        str(config.email_focus))).hexdigest()
                 alert_df = config.apply_additional_filter(alert_df)
 
                 if alert_df.empty:
