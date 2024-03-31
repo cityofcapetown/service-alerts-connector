@@ -42,7 +42,7 @@ class ServiceAlertEmailConfig(ServiceAlertOutputFileConfig):
     additional_filter: str or typing.Callable or None
 
     def apply_additional_filter(self, data_df: pandas.DataFrame) -> pandas.DataFrame:
-        logging.debug(f"( pre-fitler) {data_df.shape=}")
+        logging.debug(f"( pre-filter) {data_df.shape=}")
         filtered_df = data_df.copy()
 
         if isinstance(self.additional_filter, str):
@@ -306,11 +306,11 @@ class ServiceAlertEmailer(ServiceAlertBroadcaster):
                                              self._service_alerts_generator(SA_EMAIL_CONFIGS)):
                 config_hash = hashlib.sha256(str.encode(str(config.receivers) +
                                                         str(config.email_focus))).hexdigest()
-                alert_df = config.apply_additional_filter(alert_df)
-
                 if alert_df.empty:
                     logging.warning(f"Nothing more to do for {config=}, skipping!")
                     continue
+
+                alert_df = config.apply_additional_filter(alert_df)
 
                 for alert_dict in alert_df.to_dict(orient="records"):
                     email_filename = f"{config_hash}_{alert_dict[ID_COL]}.html"
