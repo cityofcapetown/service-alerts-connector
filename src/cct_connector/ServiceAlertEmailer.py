@@ -33,6 +33,7 @@ CITY_LOGO_FILENAME = "rect_city_logo.png"
 LINK_TEMPLATE = "https://ctapps.capetown.gov.za/sites/crhub/SitePages/ViewServiceAlert.aspx#?ID={alert_id}"
 AREA_IMAGE_FILENAME = "area_image_filename.png"
 IMAGE_LINK_TEMPLATE = "https://lake.capetown.gov.za/service-alerts.maps/{image_filename}"
+EMAIL_LINK_TEMPLATE = "https://lake.capetown.gov.za/service-alerts.service-alerts-emails/{email_filename}"
 
 
 @dataclasses.dataclass
@@ -214,6 +215,7 @@ def _get_image_attachment(image_path: pathlib.Path, attachment_name: str) -> Fil
 
 def _form_and_send_alerts_email(alert_dict: typing.Dict[str, typing.Any],
                                 email_focus: str,
+                                email_filename: str,
                                 recipients: typing.Tuple[typing.Tuple[str, str]],
                                 http_session: requests.Session) -> str:
     secrets = secrets_utils.get_secrets()
@@ -268,6 +270,7 @@ def _form_and_send_alerts_email(alert_dict: typing.Dict[str, typing.Any],
                 iso8601_timestamp=email_date,
                 bok_link=link_str,
                 image_path=image_link_str,
+                email_link=EMAIL_LINK_TEMPLATE.format(email_filename=email_filename)
             )
 
         logging.debug("Creating email")
@@ -330,7 +333,9 @@ class ServiceAlertEmailer(ServiceAlertBroadcaster):
                     if skip_flag:
                         continue
 
-                    email_message = _form_and_send_alerts_email(alert_dict, config.email_focus, config.receivers, http)
+                    email_message = _form_and_send_alerts_email(alert_dict, config.email_focus, email_filename,
+                                                                config.receivers,
+                                                                http)
 
                     logging.debug("Backing up email")
                     with tempfile.TemporaryDirectory() as tempdir:

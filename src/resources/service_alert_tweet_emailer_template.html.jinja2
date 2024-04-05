@@ -7,6 +7,12 @@
     <title>{{ email_subject }}</title>
 </head>
 <body>
+<!--[if mso]>
+<style type="text/css">
+body, table, td, h2, p {font-family: Arial, sans-serif !important;}
+tr {padding-bottom: 1em}
+</style>
+<![endif]-->
 <table align="center" border="0" cellpadding="0" cellspacing="0" width="600">
     <tr>
         <td align="center" bgcolor="#f2f2f2">
@@ -27,6 +33,8 @@
                 for easy sharing. You are receiving this email because of your interest in {{ email_focus }}. </p>
             <p>Please inspect the summary, and if you think it accurately captures the important information contained
                 in the alert, please share it publicly and widely. </p>
+            <p>A web version of this email may be found <a href="{{ email_link }}">here</a> (<strong>NB</strong> Only
+                accessible within the City of Cape Town's network).</p>
         </td>
     </tr>
     <tr>
@@ -38,7 +46,7 @@
                 The algorithm used may have made errors, and so the summary content should be double-checked.
             </p>
 
-            <p style="font-size: 18px; color: #0000ff; font-weight: bold;">{{ post_text|replace("\n","<br>") }}</p>
+            <p style="font-size: 18px; font-weight: bold;">{{ post_text|replace("\n","<br>") }}</p>
         </td>
     </tr>
     <tr>
