@@ -246,6 +246,8 @@ def _form_and_send_alerts_email(alert_dict: typing.Dict[str, typing.Any],
 
         if alert_dict["area_type"] == "Official Planning Suburb":
             fields_to_delete += ["inferred_suburbs"]
+        elif alert_dict["area_type"] == "Citywide":
+            fields_to_delete += ["inferred_suburbs", "inferred_wards"]
 
         for k in fields_to_delete:
             if k in alert_dict:
