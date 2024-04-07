@@ -64,6 +64,7 @@ AREA_IMAGE_DIM = 600
 AREA_IMAGE_DELAY = 5
 AREA_IMAGE_ZOOM = 13
 
+
 @functools.lru_cache()
 def _load_gis_layer(area_type: str, layer_query: str or None = None):
     if area_type in AREA_LOOKUP:
@@ -402,9 +403,9 @@ class ServiceAlertAugmenter(ServiceAlertBase.ServiceAlertsBase):
                 self.data.loc[record_index, social_media_col] = resp
 
     def add_social_media_posts_with_hashtags(self, source_col=TWEET_COL, destination_col=TOOT_COL):
-        if source_col in self.data.columns:
+        if source_col in self.data.columns and self.data.loc[self.data[TWEET_COL].notna(), source_col].notna().any():
             # NB this is a bit of a hack - this sort of thing should be left to the downstream consumer
-            self.data[destination_col] = self.data[source_col].copy()
+            self.data[destination_col] = self.data.loc[self.data[TWEET_COL].notna(), source_col].copy()
 
             self.data[destination_col] = (
                     self.data[destination_col] + "\n" +
