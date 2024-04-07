@@ -107,24 +107,28 @@ def _cptgpt_call_wrapper(message_dict: typing.Dict, http_session: requests.Sessi
                 "expected by 1pm, 23 Sep. For more info, contact City with request number 9115677540"
             )},
             # {"role": "user", "content": (
-            #     '{"service_area":"Water & Sanitation","title":"Burst pipe","description":"Burst pipe",'
-            #     '"area":"Macassar","location":"Musica Avenue","start_timestamp":"2023-09-22T01:30:00+02:00",'
-            #     '"forecast_end_timestamp":"2023-09-23T07:30:00+02:00","planned":false}'
+            #     '{"service_area": "Water & Sanitation","title": "Water Outages",'
+            #     '"description": "Replacing of Fire Hydrant","area": "Parklands","location": "Gie Road, Parklands",'
+            #     '"start_timestamp": "2023-09-28T12:00:00+02:00",'
+            #     '"forecast_end_timestamp": "2023-09-29T20:00:00+02:00","planned": true,"request_number":"9115690645"}'
             # )},
             # {"role": "assistant", "content": (
-            #     "🚧 Water & Sanitation alert 🚧 Burst pipe in Macassar on Musica Avenue. Service outage expected from "
-            #     "22 Sep 01:30 AM to 23 Sep 07:30 AM. #CTInfo #CapeTown #WaterandSanitation"
+            #     "🚧Water Outages🚧\n📍Gie Road, Parklands\n⏰Sep 28, 12:00 PM - Sep 29, 8:00 PM\n"
+            #     "Potential water outage while replacing Fire Hydrant. Please use request number 9115690645 when "
+            #     "contacting the City"
             # )},
             {"role": "user", "content": (
-                '{"service_area": "Water & Sanitation","title": "Water Outages",'
-                '"description": "Replacing of Fire Hydrant","area": "Parklands","location": "Gie Road, Parklands",'
-                '"start_timestamp": "2023-09-28T12:00:00+02:00",'
-                '"forecast_end_timestamp": "2023-09-29T20:00:00+02:00","planned": true,"request_number":"9115690645"}'
+                '{"service_area": "Water & Sanitation","title": "Burst Water Main",'
+                '"description": "Water streaming down the road. Both sides of road affected. '
+                'Motorists to exercise caution. Maintenance team to conduct repairs asap.",'
+                '"area": "SONEIKE II","location": "PAUL KRUGER, SONEIKE II",'
+                '"start_timestamp": "2024-03-28T14:32:00","forecast_end_timestamp": "2024-03-29T20:00:00",'
+                '"planned": false,"request_number": "9116963417","subtitle": "Running Water"}'
             )},
             {"role": "assistant", "content": (
-                "🚧Water Outages🚧\n📍Gie Road, Parklands\n⏰Sep 28, 12:00 PM - Sep 29, 8:00 PM\n"
-                "Potential water outage while replacing Fire Hydrant. Please use request number 9115690645 when "
-                "contacting the City"
+                "🚧Burst Water Main🚧\n📍Paul Kruger, Soneike\n⏰Mar 28, 14:32 PM - Mar 29, 8:00 PM\n"
+                "Water running down both sides of the road. Motorists to exercise caution. Please use request number "
+                "9116963417 when contacting the City"
             )},
 
             {"role": "user", "content": json.dumps(message_dict)},
