@@ -35,7 +35,7 @@ CPTGPT_FALLBACK_ENDPOINT = "https://datascience.capetown.gov.za/cptgpt-dev/v1/ch
 FALLBACK_DRAFTING_MODEL = "wizardlm-13b-q5"
 DRAFT_LIMIT = 10
 PROMPT_LENGTH_LIMIT = 2048
-DRAFT_TIMEOUT = 1200
+DRAFT_TIMEOUT = 300
 
 SERVICE_AREA_HASHTAGS = {
     "Water & Sanitation": "#WaterAndSanitation",
