@@ -31,8 +31,8 @@ from cct_connector import (
 # Internal LLM consts
 CPTGPT_GPU_ENDPOINT = "https://cptgpt.capetown.gov.za/api/v1/chat/completions"
 GPU_DRAFTING_MODEL = "wizardlm-13b-q5-gguf"
-CPTGPT_CPU_ENDPOINT = "https://datascience.capetown.gov.za/cptgpt/v2/v1/chat/completions"
-CPU_DRAFTING_MODEL = "wizardlm-13b-q5"
+CPTGPT_FALLBACK_ENDPOINT = "https://datascience.capetown.gov.za/cptgpt-dev/v1/chat/completions"
+FALLBACK_DRAFTING_MODEL = "wizardlm-13b-q5"
 DRAFT_LIMIT = 10
 PROMPT_LENGTH_LIMIT = 2048
 DRAFT_TIMEOUT = 1200
@@ -226,8 +226,8 @@ def _cptgpt_call_wrapper(message_dict: typing.Dict, http_session: requests.Sessi
 
             if endpoint == CPTGPT_GPU_ENDPOINT:
                 logging.debug("Falling back to CPU model...")
-                endpoint = CPTGPT_CPU_ENDPOINT
-                params["model"] = CPU_DRAFTING_MODEL
+                endpoint = CPTGPT_FALLBACK_ENDPOINT
+                params["model"] = FALLBACK_DRAFTING_MODEL
 
             time.sleep(delay)
 
