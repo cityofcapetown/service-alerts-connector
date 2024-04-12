@@ -187,13 +187,14 @@ def _cptgpt_call_wrapper(message_dict: typing.Dict, http_session: requests.Sessi
                 {"role": "system", "content": (
                     f'You shorten posts for social media. Please reason step by step summarise the post that follows to '
                     f'no more than {max_post_length} characters. Summarise any long lists using words like multiple or '
-                    'many. Only return the content of the final summarised post.'
+                    'many. Prioritise dates and area information over the causes of issues. Only return the content of '
+                    'the final summarised post.'
                 )},
                 {"role": "user", "content": (
                     '🚮 Refuse collection delays in Woodlands, Waters, Sea Point, Claremont, Lansdowne, Garlandale, '
                     'Bellville Industrial, Bellrail, Bville CBD, Sanlamhof, Dunrobin, Stikland, Saxon Industrial, '
-                    'Ravensmead, Parow Industrial, Parow Industria, Epping 2. Leave bin out until 21:00 if not '
-                    'serviced. Take bin onto property & place out by 06:30 the following day.'
+                    'Ravensmead, Parow Industrial, Parow Industria, Epping 2. Due to strike action. Leave bin out until'
+                    ' 21:00 if not serviced. Take bin onto property & place out by 06:30 the following day.'
                 )},
                 {"role": "assistant", "content": (
                     '🚮Refuse collection delays affecting multiple areas🚮. Leave bin out until 21:00 if not serviced,'
