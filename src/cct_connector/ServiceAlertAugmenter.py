@@ -165,6 +165,7 @@ def _cptgpt_call_wrapper(message_dict: typing.Dict, http_session: requests.Sessi
             rough_token_count = (len(json.dumps(params)) // 4) * 1.2 + 256
             expected_response_tokens = int((max_post_length // 4) * 2)
             logging.debug(f"{rough_token_count=}, {expected_response_tokens=}")
+            params["max_tokens"] = expected_response_tokens
 
             if (rough_token_count + expected_response_tokens) > PROMPT_LENGTH_LIMIT:
                 logging.warning("No hope of returning a valid response, skipping!")
@@ -532,5 +533,5 @@ if __name__ == "__main__":
     logging.info("...Inferr[ed] Wards")
 
     logging.info("Wr[iting] to Minio...")
-    sa_augmenter.write_data_to_minio(sa_augmenter.data)
+    # sa_augmenter.write_data_to_minio(sa_augmenter.data)
     logging.info("...Wr[ote] to Minio")
