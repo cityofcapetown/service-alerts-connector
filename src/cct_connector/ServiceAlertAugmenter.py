@@ -133,7 +133,8 @@ def _cptgpt_call_wrapper(message_dict: typing.Dict, http_session: requests.Sessi
 
             {"role": "user", "content": json.dumps(message_dict)},
         ],
-        "temperature": 0.2
+        "temperature": 0.2,
+        "frequency_penalty": 1,
     }
 
     for i, entry in enumerate(params["messages"]):
