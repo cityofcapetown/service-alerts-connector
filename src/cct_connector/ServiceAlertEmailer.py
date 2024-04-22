@@ -77,23 +77,42 @@ def _ward_curry_pot(ward_number: str) -> typing.Callable[[pandas.Series], bool]:
     return _ward_filter
 
 
+def _service_area_curry_pot(service_area: str) -> typing.Callable[[pandas.Series], bool]:
+
+    # creating curried filter function
+    def _service_area_filter(row: pandas.Series) -> bool:
+        return (row["service_area"] is not None and
+                service_area == row["service_area"])
+
+    return _service_area_filter
+
+
 SA_EMAIL_CONFIGS = [
-    # Planned Electricity Alerts
-    ServiceAlertEmailConfig("current", True, "v1", EMAIL_COLS,
-                            (("Mary-Ann", "MaryAnn.FransmanJohannes@capetown.gov.za"),
-                             ("Electricity Maintenance Team", "ElectricityMaintenance.Outages@capetown.gov.za"),),
-                            "all planned electricity work",
-                            "service_area == 'Electricity'"),
-    # All Planned Alerts
-    ServiceAlertEmailConfig("current", True, "v1", EMAIL_COLS,
-                            (("Social Media Team", "social.media@capetown.gov.za"),),
-                            "all planned work",
-                            None),
-    # Unplanned Alerts
+    # All Alerts
     ServiceAlertEmailConfig("current", False, "v1", EMAIL_COLS,
                             (("Social Media Team", "social.media@capetown.gov.za"),),
                             "all unplanned alerts",
                             None),
+    ServiceAlertEmailConfig("current", True, "v1", EMAIL_COLS,
+                            (("Social Media Team", "social.media@capetown.gov.za"),),
+                            "all planned alerts",
+                            None),
+    # Electricity-specific
+    ServiceAlertEmailConfig("current", True, "v1", EMAIL_COLS,
+                            (("Mary-Ann", "MaryAnn.FransmanJohannes@capetown.gov.za"),
+                             ("Electricity Maintenance Team", "ElectricityMaintenance.Outages@capetown.gov.za"),),
+                            "all planned electricity work",
+                            _service_area_curry_pot("Electricity")),
+    ServiceAlertEmailConfig("current", False, "v1", EMAIL_COLS,
+                            (("Liza", "Elizabeth.Laubscher@capetown.gov.za"),
+                             ("Jean-Marie", "JeanMarie.deWaal@capetown.gov.za")),
+                            "all unplanned electricity alerts",
+                            _service_area_curry_pot("Electricity")),
+    ServiceAlertEmailConfig("current", True, "v1", EMAIL_COLS,
+                            (("Liza", "Elizabeth.Laubscher@capetown.gov.za"),
+                             ("Jean-Marie", "JeanMarie.deWaal@capetown.gov.za"),),
+                            "all planned electricity alerts",
+                            _service_area_curry_pot("Electricity")),
     # Ward 115
     ServiceAlertEmailConfig("current", False, "v1", EMAIL_COLS,
                             (("Cllr McMahon", "Ian.McMahon@capetown.gov.za"),
