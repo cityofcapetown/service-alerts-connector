@@ -1,6 +1,7 @@
 import hashlib
 import multiprocessing
 import logging
+import uuid
 
 from db_utils import minio_utils
 import pandas
@@ -11,6 +12,10 @@ from cct_connector import CHECKSUM_COLUMN, LATEST_PREFIX, ID_COL
 N_PROCS = max(1, min(8, int(multiprocessing.cpu_count() / 2)))  # cap processor use at 8
 N_CHUNKS = N_PROCS * 4
 MIN_CHUNKSIZE = 10000
+SKIP_SET = [
+    # Uncomment and run locally to flush individual values
+    # 24469, 24468, 24467, 24466, 24465, 24464, 24463, 24462, 24461
+]
 
 
 def _calculate_checksums(args):
@@ -53,6 +58,8 @@ def _get_checksum_indices(cache_data_df, data_checksums):
         cache_data_df.index.values,
         cache_data_df[CHECKSUM_COLUMN].values
     ])
+
+    data_checksums.loc[SKIP_SET] = ""
 
     data_index = pandas.MultiIndex.from_arrays([
         data_checksums.index.values,
