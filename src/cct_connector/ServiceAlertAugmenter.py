@@ -30,11 +30,11 @@ from cct_connector import (
 
 # Internal LLM consts
 CPTGPT_GPU_ENDPOINT = "https://cptgpt.capetown.gov.za/api-dev/v1/chat/completions"
-GPU_DRAFTING_MODEL = "wizardlm-13b-q5"
+GPU_DRAFTING_MODEL = "llama3-8b-it-q5"
 CPTGPT_FALLBACK_ENDPOINT = "https://datascience.capetown.gov.za/cptgpt-dev/v1/chat/completions"
 FALLBACK_DRAFTING_MODEL = "wizardlm-13b-q5"
 DRAFT_LIMIT = 10
-PROMPT_LENGTH_LIMIT = 2048
+PROMPT_LENGTH_LIMIT = 4096
 DRAFT_TIMEOUT = 300
 
 SERVICE_AREA_HASHTAGS = {
