@@ -1,6 +1,7 @@
 import base64
 import contextlib
 import functools
+import hashlib
 import json
 import logging
 import os
@@ -12,12 +13,15 @@ import typing
 
 import geopandas
 from db_utils import minio_utils, proxy_utils
+from geopy.geocoders import Nominatim
 from geospatial_utils import mportal_utils
 import pandas
 import requests
 from selenium.webdriver import FirefoxOptions
 from selenium.webdriver.firefox.service import Service
 from seleniumwire import webdriver
+import shapely
+import shapely.geometry
 import shapely.wkt
 from tqdm.auto import tqdm
 
@@ -29,12 +33,12 @@ from cct_connector import (
 )
 
 # Internal LLM consts
-CPTGPT_GPU_ENDPOINT = "https://cptgpt.capetown.gov.za/api/v1/chat/completions"
-GPU_DRAFTING_MODEL = "wizardlm-13b-q5-gguf"
+CPTGPT_GPU_ENDPOINT = "https://datascience.capetown.gov.za/cptgpt-dev/v1/chat/completions"
+GPU_DRAFTING_MODEL = "llama3-8b-it-q5"
 CPTGPT_FALLBACK_ENDPOINT = "https://datascience.capetown.gov.za/cptgpt-dev/v1/chat/completions"
 FALLBACK_DRAFTING_MODEL = "wizardlm-13b-q5"
 DRAFT_LIMIT = 10
-PROMPT_LENGTH_LIMIT = 2048
+PROMPT_LENGTH_LIMIT = 4096
 DRAFT_TIMEOUT = 300
 
 SERVICE_AREA_HASHTAGS = {
@@ -56,16 +60,21 @@ AREA_LOOKUP = {
 }
 AREA_INFERENCE_THRESHOLD = 0.05
 
+GEOCODER_DELAY = 2
+GEOCODER_TIMEOUT = 5
+LOCATION_BUFFER = 0.0001  # In degrees decimal. At Cape Town's Lat-Long, this is about 10m
+
 AREA_WEBDRIVER_PATH = "/usr/bin/geckodriver"
 AREA_IMAGE_SALT = "2024-03-20T22:59"
 AREA_IMAGE_BUCKET = f"{SERVICE_ALERTS_PREFIX}.maps"
 AREA_IMAGE_FILENAME_TEMPLATE = "{area_type_str}_{area_str}_{salt_str}.png"
+LOCATION_IMAGE_FILENAME_TEMPLATE = "{area_type_str}_{area_str}_{location_str}_{salt_str}.png"
 AREA_IMAGE_DIM = 600
 AREA_IMAGE_DELAY = 5
-AREA_IMAGE_ZOOM = 13
+AREA_IMAGE_ZOOM = 16
 
 
-@functools.lru_cache()
+@functools.lru_cache
 def _load_gis_layer(area_type: str, layer_query: str or None = None):
     if area_type in AREA_LOOKUP:
         layer_name, _ = AREA_LOOKUP[area_type]
@@ -78,8 +87,364 @@ def _load_gis_layer(area_type: str, layer_query: str or None = None):
     return layer_gdf.query(layer_query) if layer_query else layer_gdf
 
 
-def _cptgpt_call_wrapper(message_dict: typing.Dict, http_session: requests.Session,
-                         max_post_length: int) -> str or None:
+@functools.lru_cache
+def _load_geocoder() -> Nominatim:
+    return Nominatim(user_agent="cct-service-alert-pipeline")
+
+
+@functools.lru_cache
+def _cached_geocoder_wrapper(address: str, geometry: str = 'wkt') -> typing.Dict:
+    with proxy_utils.set_env_http_proxy():
+        geocoder = _load_geocoder()
+        # Nominatim requests no more than 1 call per second
+        time.sleep(GEOCODER_DELAY)
+        return geocoder.geocode(address, geometry=geometry, timeout=GEOCODER_TIMEOUT)
+
+
+def _generate_polygons(location_suggestions: typing.List[str],
+                       ward: str or None,
+                       bounding_polygon: shapely.geometry.base) -> shapely.geometry.Polygon or None:
+    output_shape = None
+    for location in location_suggestions:
+        # if this isn't a compound address, try a lookup against the suburb layer
+        if ',' not in location:
+            # NB do the query after the functional call, otherwise it triggers a fetch of the layer
+            location_lower = location.lower()
+            suburb = _load_gis_layer("Official Planning Suburb").query(
+                f"OFC_SBRB_NAME.str.lower() == @location_lower"
+            )
+            if suburb.shape[0] == 1:
+                logging.debug(f"Found {location} in suburbs layer, returning that result")
+                output_shape = suburb.iloc[0]["WKT"]
+                break
+
+        address_string = f"{location}, Cape Town"
+        for i in range(2):
+            geocoded_location = _cached_geocoder_wrapper(address_string)
+
+            if geocoded_location is not None and "POINT" not in geocoded_location.raw["geotext"]:
+                # handling the general case where we get a polygon or linestring back
+                # generating location shape with suitable buffer
+                output_shape = shapely.wkt.loads(geocoded_location.raw["geotext"]).buffer(LOCATION_BUFFER)
+            elif geocoded_location is not None and "POINT" in geocoded_location.raw["geotext"]:
+                # handle point location - presume it's a suburb or something similar
+                south_lat, north_lat, west_lon, east_lon = geocoded_location.raw["boundingbox"]
+                output_shape = shapely.geometry.Polygon([
+                    (west_lon, south_lat),
+                    (east_lon, south_lat),
+                    (east_lon, north_lat),
+                    (west_lon, north_lat),
+                    (west_lon, south_lat)  # Closing the polygon
+                ])
+
+            # checking the location intersects with our bounding polygon
+            if shapely.intersects(output_shape, bounding_polygon):
+                logging.debug(f"{output_shape=}")
+                break
+            elif output_shape is not None:
+                logging.warning(
+                    "Geocoded location does **not** intersect with bounding polygon, rejecting this location")
+                output_shape = None
+
+            # trying again with the ward, since the location hasn't turned up anything
+            if ward is not None:
+                logging.debug(f"Address string {address_string} failed, attempting with ward")
+                address_string, *_ = address_string.split(",")
+                address_string += f", Ward {ward}, Cape Town"
+        else:
+            logging.debug(f"No location found for '{location}'")
+
+        if output_shape:
+            break
+
+    return output_shape
+
+
+def _cptgpt_location_call_wrapper(location_dict: typing.Dict, http_session: requests.Session) -> typing.List or None:
+    endpoint = CPTGPT_GPU_ENDPOINT
+    # ToDo move messages to standalone config file
+    params = {
+        "model": GPU_DRAFTING_MODEL,
+        "messages": [
+            {
+                "role": "system",
+                "content": "You reason step by step to prepare a nested JSON array of strings for submission to an online geocoding service that is very sensitive to correct spelling and exact wording. My intention is to use this service to translate text descriptions of locations within the City of Cape Town into cartographic polygons of areas affected by service outages.\n\nYou will be provided with JSON objects that might contain a \"area\" field, that contain entries from a controlled list of wider areas in the City of Cape Town, but definitely a \"location\" field that contain one or more specific locations within that area, captured as free text. \n\nPlace each location described in a separate array. Also, remove any references to generic areas of the City (e.g. Southern Suburbs). Within each location array, give up to 5 suggestions for strings to be submitting to the geocoding service. \n\nFor the first suggestion, stay close to the location as given, but for the subsequent entries draw upon your knowledge of addresses in general, and Cape Town in particular, to suggest possible variations in both suffixes (e.g. St, Rd, Cres) and spelling.\n\nOnly provide the resulting array of arrays for the last object given."
+            },
+            {
+                "role": "user",
+                "content": "{\narea\": \"VOELVLEI\",\n\"location\": \"The Voëlvlei Water Treatment Plant will be shut down for standard routine maintenance to operational valves from 08:00 until 16:00 on Thursday 25 April 2024. It will impact the water supply to the reservoirs supplying Durbanville, Fisantekraal, Klipheuwel, Uitzicht, Pinehurst and Sonstraalhoogte in the Northern parts of the city. Residents in these areas are kindly requested to reduce their consumption during this period. The City is topping up its reservoirs prior to the shutdown\"\n}"
+            },
+            {
+                "role": "assistant",
+                "content": "[[\"Durbanville\"], [\"Fisantekraal\"], [\"Klipheuwel\"] , [\"Uitzicht\"], [\"Pinehurst\"], [\"Sonstraalhoogte\"]]"
+            },
+            {
+                "role": "user",
+                "content": "{\n\"area\": \"BELLVILLE CBD\",\n\"location\": \"Ridgeworth and Bloemhof\"\n}"
+            },
+            {
+                "role": "assistant",
+                "content": "[[\"Ridgeworth, Bellville CBD\", \"Ridgeworth, Bellville\"], [\"Bloemhof, Bellville CBD\", \"Bloemhof, Bellville\"]]"
+            },
+            {
+                "role": "user",
+                "content": "{    \n\"area\": \"MILNERTON\",\n\"location\": \"Milnerton area\"\n}"
+            },
+            {
+                "role": "assistant",
+                "content": "[[\"Milnerton\"]]"
+            },
+            {
+                "role": "user",
+                "content": "{\n\"area\": \"MAMRE\",\n\"location\": \"Lavender St & surr\"\n}"
+            },
+            {
+                "role": "assistant",
+                "content": "[[\"Lavender St, Mamre\", \"Lavender Cres, Mamre\", \"Lavender Rd, Mamre\"]]"
+            },
+            {
+                "role": "user",
+                "content": "{\"area\": \"HOUT BAY\", \"location\": \"Portion of Hout Bay Harbour Rd & Immediate Surr\"}"
+            },
+            {
+                "role": "assistant",
+                "content": "[[\"Hout Bay Harbour Rd, Hout Bay\", \"Harbour Rd, Hout Bay\", \"Hout Bay Harbour Way, Hout Bay\"]]"
+            },
+            {
+                "role": "user",
+                "content": "{\"area\": \"NEWLANDS\", \"location\": \"Almond Road\"}"
+            },
+            {
+                "role": "assistant",
+                "content": "[[\"Almond Rd, Newlands\", \"Almond St, Newlands\"]]"
+            },
+            {
+                "role": "user",
+                "content": "{\"area\": \"MANENBERG\", \"location\": \"Yusuf Dadoo Road\\\\n\"}"
+            },
+            {
+                "role": "assistant",
+                "content": "[[\"Yusuf Dadoo Rd, Manenberg\", \"Yusuf Dadoo St, Manenberg\"]]"
+            },
+            {
+                "role": "user",
+                "content": "{\"area\": \"PARKLANDS\", \"location\": \"7 Malborough Road\"}"
+            },
+            {
+                "role": "assistant",
+                "content": "[[\"Malborough Rd, Parklands\", \"Malborough St, Parklands\", \"Marlborough Rd, Parklands\", \"Malborough Cres, Parklands\"]]"
+            },
+            {
+                "role": "user",
+                "content": "{\"area\": \"KLIPKOP\", \"location\": \"Claredon street\"}"
+            },
+            {
+                "role": "assistant",
+                "content": "[[\"Claredon St, Klipkop\", \"Clarendon St, Klipkop\", \"Claredon Rd, Klipkop\", \"Claredon Ave, Klipkop\"]]"
+            },
+            {
+                "role": "user",
+                "content": "{\"area\": \"VREDEKLOOF\", \"location\": \"De Bron, Sheba, Sonte, Garderner, Tivan, Sylvia, Barry, De Tuin, Daniel, Lula, Wilfrank, James & Rebecca - Vredekloof - Brackenfell\"}"
+            },
+            {
+                "role": "assistant",
+                "content": "[[\"De Bron, Vredekloof\"],[\"Sheba, Vredekloof\"],[\"Sonte, Vredekloof\"],[\"Garderner, Vredekloof\", \"Gardener, Vredekloof\"],[\"Tivan, Vredekloof\"],[\"Sylvia, Vredekloof\"],[\"Barry, Vredekloof\"],[\"De Tuin, Vredekloof\"],[\"Daniel, Vredekloof\"],[\"Lula, Vredekloof\"],[\"Wilfrank, Vredekloof\"],[\"James, Vredekloof\"],[\"Rebecca, Vredekloof\"]]"
+            },
+            {
+                "role": "user",
+                "content": "{\"area\": \"VRYGROND\", \"location\": \"Vrygronf Road & surr\"}"
+            },
+            {
+                "role": "assistant",
+                "content": "[[\"Vrygrond Rd, Vrygrond\", \"Vrygrond St, Vrygrond\", \"Vrygrond Ave, Vrygrond\"]]"
+            },
+            {
+                "role": "user",
+                "content": "{\"area\": \"KHAYELITSHA\", \"location\": \"NTLANDLOLO ROAD, ENKANINI, KHAYELITSHA\"}"
+            },
+            {
+                "role": "assistant",
+                "content": "[[\"Ntlandlolo Rd, Khayelitsha\", \"Ntlandlolo Rd, Khayelitsha\", \"Ntlandlolo St, Khayelitsha\"]]"
+            },
+            {
+                "role": "user",
+                "content": "{\"area\": \"LEONSDALE\", \"location\": \"24 16th\"}"
+            },
+            {
+                "role": "assistant",
+                "content": "[[\"16th St, Leonsdale\", \"16th Ave, Leonsdale\", \"16th Rd, Leonsdale\"]]"
+            },
+            {
+                "role": "user",
+                "content": "{\"area\": \"KLIPKOP\", \"location\": \"Koekelenberg Street\"}"
+            },
+            {
+                "role": "assistant",
+                "content": "[[\"Koekelenberg St, Klipkop\", \"Koekelenberg Rd, Klipkop\", \"Koekelenburg St, Klipkop\", \"Koegelenberg St, Klipkop\"]]"
+            },
+            {
+                "role": "user",
+                "content": "{\"area\": \"SCOTTSDENE\", \"location\": \"CAVALLERIA CRESCENT, sCOTTSDENE, KRAAIFONTEIN\"}"
+            },
+            {
+                "role": "assistant",
+                "content": "[[\"Cavalleria Cres, Scottsdene\", \"Cavalaria Cres, Scottsdene\", \"Cavaleria Cres, Scottsdene\", \"Cavaleria St, Scottsdene\"\"]]"
+            },
+            {
+                "role": "user",
+                "content": "{\"location\": \"AREA EAST COLLECTIONS Backlog Suburbs in Progress: Delayed Suburbs: Tuesday, 23 April 2024 Comment\\\\n\\\\uf0b7 None\\\\n\\\\uf0b7 Makhaza\\\\n\\\\uf0b7 Roundhay\\\\n\\\\uf0b7 Jaqueshill\\\\n\\\\uf0b7 Berbago\\\\n\\\\uf0b7 Die Wingerd\\\\n\\\\uf0b7 Briza\\\\n\\\\uf0b7 Goedehoop\\\\n\\\\uf0b7 Bridgewater\\\\n\\\\uf0b7 Carey Park\\\\n\\\\uf0b7 Longdown Estate\\\\n\\\\uf0b7 Westridge\\\\n\\\\uf0b7 Somersetridge\\\\n\\\\uf0b7 Motor City\\\\nPlease leave bin out until 21:00\\\\nIf not serviced\\\\ntake bin onto property and place out by 06:30 the following day\"}"
+            },
+            {
+                "role": "assistant",
+                "content": "[[\"Makhaza\"],[\"Roundhay\"],[\"Jaqueshill\", \"Jacques Hill\"],[\"Berbago\"],[\"Die Wingerd\", \"Die Wingert\"],[\"Goedehoop\"], [\"Bridgewater\"], [\"Carey Park\"], [\"Longdown Estate\"], [\"Westridge\"], [\"Somersetridge\", \"Somerset Ridge\"], [\"Motor City\"]]"
+            },
+            {
+                "role": "user",
+                "content": "{\"area\": \"CONSTANTIA\", \"location\": \"Avenue Beauvias Street\\\\nConstantia\"}"
+            },
+            {
+                "role": "assistant",
+                "content": "[[\"Avenue Beauvias St, Constantia\", \"Avenue Beauvais St, Constantia\", \"Beauvias Ave, Constantia\", \"Avenue Beauvais, Constantia\"]]"
+            },
+            {
+                "role": "user",
+                "content": "{\"location\": \"AREA SOUTH COLLECTIONS Backlog Suburbs in Progress: Delayed Suburbs: Tuesday, 23 April 2024 Comment\\\\n\\\\uf0b7 None\\\\n\\\\uf0b7 Westridge\\\\n\\\\uf0b7 Grassy Park\\\\n\\\\uf0b7 Lower Crossroads\"}"
+            },
+            {
+                "role": "assistant",
+                "content": "[[\"Westridge\"],[\"Grassy Park\"],[\"Lower Crossroads\", \"Crossroads\"]]"
+            },
+            {
+                "role": "user",
+                "content": "{\"area\": \"ATHLONE\", \"location\": \"Telford, Lawrence road & surrounds\"}"
+            },
+            {
+                "role": "assistant",
+                "content": "[[\"Telford Rd, Athlone\", \"Telford St, Athlone\"], [\"Lawrence Rd, Athlone\", \"Lawrence St, Athlone\"]]"
+            },
+            {
+                "role": "user",
+                "content": "{\"area\": \"HOUT BAY\", \"location\": \"Victorskloof \\\\u2013 Hout Bay\"}"
+            },
+            {
+                "role": "assistant",
+                "content": "[[\"Victorskloof, Hout Bay\", \"Victorskloof, Houtbay\",]]"
+            },
+            {
+                "role": "user",
+                "content": "{\"area\": \"SONKRING\", \"location\": \"Corner Berk and Vredeveld\"}"
+            },
+            {
+                "role": "assistant",
+                "content": "[[\"Berk, Sonkring\", \"Berk St, Sonkring\", \"Berk Rd, Sonkring\"],[\"Vredeveld, Sonkring\", \"Vredeveld St, Sonkring\", \"Vredeveld Rd, Sonkring\"]]"
+            },
+            {
+                "role": "user",
+                "content": "{\"area\": \"GLENLILY\", \"location\": \"C/O Fairfield & Third Avenue\"}"
+            },
+            {
+                "role": "assistant",
+                "content": "[[\"Fairfield Ave, Glenlily\", \"Fairfield Rd, Glenlily\"],[\"Third Avenue, Glenlily\", \"3rd Ave, Glenlily\"]]"
+            },
+            {
+                "role": "user",
+                "content": "{\"area\": \"MOWBRAY\", \"location\": \"Strubens roads\"}"
+            },
+            {
+                "role": "assistant",
+                "content": "[[\"Strubens Rd, Mowbray\", \"Struben St, Mowbray\", \"Strubens Ave, Mowbray\"]]"
+            },
+            {
+                "role": "user",
+                "content": "{\"area\": \"RAVENSMEAD\", \"location\": \"Florida Street, between 6th avenue and 15th avenue\"}"
+            },
+            {
+                "role": "assistant",
+                "content": "[[\"Florida St, Ravensmead\", \"Florida Rd, Ravensmead\"],[\"6th Ave, Ravensmead\", \"6th St, Ravensmead\"],[\"15th Ave, Ravensmead\", \"15th St, Ravensmead\"]]"
+            },
+            {
+                "role": "user",
+                "content": json.dumps(location_dict)
+            }
+        ],
+        "temperature": 0.2,
+    }
+
+    # Wrapping call in retry loop
+    last_error = None
+    response_text = ""
+    for t in range(3):
+        try:
+            logging.debug(f"{params=}")
+
+            response = http_session.post(endpoint, json=params, timeout=DRAFT_TIMEOUT)
+            response_data = response.json()
+            logging.debug(f"{response_data=}")
+
+            response_text = response_data['choices'][0]['message']['content']
+            response_json = json.loads(response_text)
+
+            # correcting common misconstructions
+            # first up, three layer arrays (should only be two)
+            if isinstance(response_json, list) and len(response_json) == 1:
+                if isinstance(response_json[0], list) and len(response_json[0]) == 1:
+                    if isinstance(response_json[0][0], list):
+                        logging.debug("Threefold nested array, unpacking one layer")
+                        response_json = response_json[0]
+            # then, single layer arrays
+            elif isinstance(response_json, list) and len(response_json) >= 1 and all(
+                    map(lambda val: isinstance(val, str), response_json)):
+                logging.debug("Flat array of strings, adding another layer")
+                response_json = [response_json]
+
+            # checking response is the form that we expect
+            assert isinstance(response_json, list), f"Expected a JSON array back, got '{response_text}'"
+            assert all(map(lambda val: isinstance(val, list), response_json)), (
+                f"Expected only arrays in the outer array, got '{response_text}'"
+            )
+            for json_array in response_json:
+                assert all(map(lambda val: isinstance(val, str), json_array)), (
+                    f"Expected only strings in the inner array, got '{json_array}'"
+                )
+
+            return response_json
+
+        except (json.JSONDecodeError, AssertionError) as e:
+            logging.debug(f"Got {e.__class__.__name__}: '{e}'")
+            last_error = e
+
+            if t == 0:
+                params["messages"] += [
+                    {
+                        "role": "assistant",
+                        "content": response_text
+                    },
+                    {
+                        "role": "user",
+                        "content": "You responded with a malformed or incorrectly structured JSON array. Please fix this to"
+                                   "only be nested JSON array(s) of the location(s) in the last JSON object I proved you "
+                                   "with. Only return the JSON array."
+                    }
+                ]
+            else:
+                params["temperature"] += 0.1
+
+            delay = t * 10
+            logging.debug(f"sleeping for {delay}s...")
+            time.sleep(delay)
+
+    else:
+        if isinstance(last_error, requests.exceptions.ReadTimeout) or isinstance(last_error, KeyError):
+            logging.error("CPTGPT timing out or malformed response - bailing!")
+            sys.exit(-1)
+
+    logging.warning(f"Inference failed - last error: {last_error.__class__.__name__}: '{last_error}'")
+
+    return None
+
+
+def _cptgpt_summarise_call_wrapper(message_dict: typing.Dict, http_session: requests.Session,
+                                   max_post_length: int) -> str or None:
     system_prompt = (
         f'Please reason step by step to draft {max_post_length} or less character social media posts about potential '
         'City of Cape Town service outage or update, using the details in provided JSON objects. '
@@ -99,7 +464,7 @@ def _cptgpt_call_wrapper(message_dict: typing.Dict, http_session: requests.Sessi
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": (
                 '{"service_area":"Electricity","title":"Cable stolen","description":"Cable stolen","area":"LWANDLE",'
-                ' "location":"Noxolost&surr…","start_timestamp":"2023-09-21T09:00:00+02:00",'
+                ' "location":"Noxolo st&surr…","start_timestamp":"2023-09-21T09:00:00+02:00",'
                 ' "forecast_end_timestamp":"2023-09-23T13:00:00+02:00","planned":false,"request_number":"9115677540"}'
             )},
             {"role": "assistant", "content": (
@@ -250,6 +615,8 @@ def _get_selenium_driver() -> webdriver.Firefox:
 
     # Turning down some of the loggers
     service = Service(executable_path=AREA_WEBDRIVER_PATH)
+    # os.environ["TMPDIR"] = "/home/gordon/snap/firefox/common/tmp"
+    # service = Service(executable_path="/home/gordon/Downloads/geckodriver")
 
     options = FirefoxOptions()
     options.add_argument("--headless")
@@ -261,14 +628,14 @@ def _get_selenium_driver() -> webdriver.Firefox:
         'proxy': {
             'http': proxy_str,
             'https': proxy_str,
-            'no_proxy': f'localhost,127.0.0.1'
+            'no_proxy': f'localhost,127.0.0.1,lake.capetown.gov.za'
         }
     }
 
     browser = webdriver.Firefox(service=service,
                                 options=options,
                                 seleniumwire_options=wire_options)
-    browser.implicitly_wait(300)
+    browser.implicitly_wait(30)
     logging.debug("...Setup Selenium webdriver")
 
     # Quietening some loggers
@@ -285,10 +652,13 @@ def _get_selenium_driver() -> webdriver.Firefox:
 def _generate_screenshot_of_area(area_gdf: geopandas.GeoDataFrame, area_filename: str) -> bool:
     m = area_gdf.explore(max_zoom=AREA_IMAGE_ZOOM, zoom_control=False)
 
+    logging.debug("Setting up temp dir and webdriver")
     with tempfile.TemporaryDirectory() as temp_dir, _get_selenium_driver() as driver:
         driver.set_window_size(AREA_IMAGE_DIM, AREA_IMAGE_DIM)
+        # temp_dir = "/home/gordon/snap/firefox/common/tmp"
         local_image_path = pathlib.Path(temp_dir) / area_filename
         local_html_path = str(local_image_path).replace(".png", ".html")
+        logging.debug(f"Saving map to {local_html_path}")
         m.save(local_html_path)
         logging.debug(f"Map saved to {local_html_path}")
 
@@ -296,20 +666,32 @@ def _generate_screenshot_of_area(area_gdf: geopandas.GeoDataFrame, area_filename
         driver.get(f"file://{local_html_path}")
         time.sleep(AREA_IMAGE_DELAY)
         logging.debug(f"...Loaded map from {local_html_path}")
-        driver.save_screenshot(local_image_path)
+        driver.save_screenshot(str(local_image_path))
         logging.debug(f"Saved to {local_image_path}")
 
         logging.debug(f"Uploading to {AREA_IMAGE_BUCKET}")
+
         return minio_utils.file_to_minio(local_image_path, AREA_IMAGE_BUCKET)
 
 
-def _generate_image_link(area_type: str, area: str, wkt_str: str) -> str:
-    area_image_filename = AREA_IMAGE_FILENAME_TEMPLATE.format(
+def _generate_image_link(area_type: str, area: str, location: str or None, wkt_str: str) -> str:
+    template_params = dict(
         salt_str=base64.b64encode(bytes(AREA_IMAGE_SALT, 'utf-8')).decode(),
         area_type_str=base64.b64encode(bytes(area_type, 'utf-8')).decode(),
         area_str=base64.b64encode(bytes(area, 'utf-8')).decode(),
     )
-    logging.debug(f"{AREA_IMAGE_SALT=}, {area_type=}, {area=}, {area_image_filename=}")
+    template_str = AREA_IMAGE_FILENAME_TEMPLATE
+
+    if pandas.notna(location):
+        template_str = LOCATION_IMAGE_FILENAME_TEMPLATE
+        template_params["location_str"] = base64.b64encode(bytes(location, 'utf-8')).decode()
+
+    area_image_filename = template_str.format(**template_params)
+
+    if len(area_image_filename) > 32:
+        area_image_filename = hashlib.sha256(area_image_filename.encode()).hexdigest() + ".png"
+
+    logging.debug(f"{AREA_IMAGE_SALT=}, {area_type=}, {area=}, {location=}, {area_image_filename=}")
 
     for _ in minio_utils.list_objects_in_bucket(AREA_IMAGE_BUCKET, minio_prefix_override=area_image_filename):
         logging.debug(f"Cache hit on '{area_image_filename}', proceeding without regenerating the image")
@@ -318,7 +700,7 @@ def _generate_image_link(area_type: str, area: str, wkt_str: str) -> str:
     logging.debug(f"Cache miss on '{area_image_filename}', generating screenshot...")
     area_gdf = geopandas.GeoDataFrame(geometry=[shapely.wkt.loads(wkt_str)], crs="EPSG:4326")
     _generate_screenshot_of_area(area_gdf, area_image_filename)
-    logging.debug(f"Screenshot generate for '{area_image_filename}'")
+    logging.debug(f"Screenshot generated for '{area_image_filename}'")
 
     return area_image_filename
 
@@ -405,7 +787,7 @@ class ServiceAlertAugmenter(ServiceAlertBase.ServiceAlertsBase):
 
                 # ToDo use LLM to summarise any excessively long fields
 
-                resp = _cptgpt_call_wrapper(record, session, post_size_limit)
+                resp = _cptgpt_summarise_call_wrapper(record, session, post_size_limit)
 
                 self.data.loc[record_index, social_media_col] = resp
 
@@ -422,7 +804,7 @@ class ServiceAlertAugmenter(ServiceAlertBase.ServiceAlertsBase):
             logging.warning(f"Skipping because '{source_col}' is not in the data!")
             logging.debug(f"{self.data.columns}")
 
-    def lookup_geospatial_footprint(self):
+    def lookup_area_geospatial_footprint(self):
         logging.debug("Forming geospatial value lookup")
         area_type_spatial_lookup = {
             val: _load_gis_layer(val).set_index(AREA_LOOKUP[val][1])["WKT"].to_dict()
@@ -434,11 +816,15 @@ class ServiceAlertAugmenter(ServiceAlertBase.ServiceAlertsBase):
             "area_type.notna() and ~area_type.isin(@AREA_TYPE_EXCLUSION_SET)"
         ).apply(
             lambda row: (
-                area_type_spatial_lookup[row["area_type"]][row["area"]]
+                # reducing precision to 6 decimal places
+                shapely.wkt.dumps(
+                    area_type_spatial_lookup[row["area_type"]][row["area"]],
+                    rounding_precision=6
+                )
                 if row["area"] in area_type_spatial_lookup[row["area_type"]] else None
             ),
             axis=1
-        ).dropna().astype(str)
+        ).dropna()
 
         if not footprint_lookup.empty:
             self.data["geospatial_footprint"] = footprint_lookup
@@ -448,7 +834,8 @@ class ServiceAlertAugmenter(ServiceAlertBase.ServiceAlertsBase):
             image_filename_lookup = self.data.query(
                 "geospatial_footprint.notna()"
             ).apply(
-                lambda row: _generate_image_link(row['area_type'], row['area'], row['geospatial_footprint']),
+                lambda row: _generate_image_link(row['area_type'], row['area'], row['location'],
+                                                 row['geospatial_footprint']),
                 axis=1
             )
 
@@ -457,49 +844,77 @@ class ServiceAlertAugmenter(ServiceAlertBase.ServiceAlertsBase):
 
     def infer_area(self, layer_name: str, layer_col: str, data_col_name: str, layer_query: str or None = None):
         layer_gdf = _load_gis_layer(layer_name, layer_query)[[layer_col, "WKT"]].assign(
-            # getting total area before intersect operation
-            area=lambda gdf: gdf.geometry.area
+            layer_area=lambda gdf: gdf.geometry.area
         )
 
-        area_type_spatial_lookup = {
-            val: _load_gis_layer(val).overlay(
-                # using geospatial intersect to determine the overlap between the set area
-                layer_gdf
-            ).assign(
-                # working out proportional area of the intersection
-                prop_area=lambda gdf: gdf.geometry.area / gdf["area"]
-            ).query(
-                # applying the threshold - only count the intersection if it exceeds the threshold
-                "prop_area > @AREA_INFERENCE_THRESHOLD"
-            ).groupby(AREA_LOOKUP[val][1]).apply(
-                # grouping back to a single entry per area
-                lambda group_df: group_df[layer_col].values.astype(str)
-            ).to_dict()
-            for val in self.data["area_type"].unique()
-            if val is not None and val not in AREA_TYPE_EXCLUSION_SET and AREA_LOOKUP[val][0] != layer_name
-        }
-
-        valid_mask = (
-            self.data["area_type"].apply(
-                lambda val: (
-                    # checking that the area type is even in our lookup
-                        val in AREA_LOOKUP and
-                        # checking that we're not trying to infer the area that matches the area_type
-                        AREA_LOOKUP[val][0] != layer_name
-                )
-            )
+        # assembling locations of interest
+        source_data = self.data.copy().dropna(subset="geospatial_footprint")
+        data_locs = geopandas.GeoDataFrame({"index": source_data.index},
+                                           index=source_data.index,
+                                           geometry=source_data["geospatial_footprint"].apply(shapely.wkt.loads),
+                                           crs="EPSG:4326").assign(
+            data_area=lambda gdf: gdf.geometry.area
         )
 
-        area_lookup = self.data.loc[valid_mask].apply(
-            lambda row: (
-                area_type_spatial_lookup[row["area_type"]][row["area"]]
-                if row["area"] in area_type_spatial_lookup[row["area_type"]] else None
-            ),
-            axis=1
-        ).dropna()
+        area_lookup = data_locs.overlay(
+            layer_gdf
+        ).assign(
+            # working out proportional area of the intersection with areas being inferred
+            layer_prop_area=lambda gdf: gdf.geometry.area / gdf["layer_area"],
+            data_prop_area=lambda gdf: gdf.geometry.area / gdf["data_area"],
+        ).query(
+            # applying the threshold - only include the intersection if it exceeds the threshold
+            "layer_prop_area > @AREA_INFERENCE_THRESHOLD or data_prop_area > @AREA_INFERENCE_THRESHOLD"
+        ).groupby("index").apply(
+            lambda group_df: list(group_df[layer_col].astype(str))
+        )
 
         if not area_lookup.empty:
             self.data[data_col_name] = area_lookup
+
+    def lookup_location_geospatial_footprint(self):
+        source_data = self.data[["area", "location", "inferred_wards", "area_type", "geospatial_footprint"]].copy()
+        source_index = source_data.index.values
+
+        json_dicts = source_data.to_dict(orient='records')
+        with proxy_utils.setup_http_session() as session:
+            for record_index, record in zip(source_index, tqdm(json_dicts)):
+                # todo implement cache lookup and skip, if possible
+
+                wards = pandas.Series(record["inferred_wards"]).dropna()
+                if wards.empty or wards.isna().all():
+                    wards = [None]
+                del record["inferred_wards"]
+
+                if record["area_type"] != "Official Planning Suburb":
+                    del record["area"]
+                    wards = [None]
+                del record["area_type"]
+
+                bounding_polygon = shapely.wkt.loads(record["geospatial_footprint"])
+                del record["geospatial_footprint"]
+
+                # Getting list of locations via LLM
+                llm_locations = _cptgpt_location_call_wrapper(record, session)
+                logging.debug(f"{llm_locations=}")
+
+                if llm_locations is None:
+                    logging.warning(f"Skipping {record}, empty response from LLM")
+                    continue
+
+                # Try geocode locations
+                location_polygons = set(filter(lambda val: val is not None, (
+                    _generate_polygons(location_suggestions, ward, bounding_polygon)
+                    for location_suggestions in llm_locations
+                    for ward in wards
+                )))
+
+                if len(location_polygons) > 0:
+                    # merging all the polygons together
+                    merged_location_polygons = shapely.unary_union(list(location_polygons))
+                    # rounding the precision when outputting the data
+                    self.data.loc[record_index, "geospatial_footprint"] = shapely.wkt.dumps(merged_location_polygons,
+                                                                                            rounding_precision=6)
 
 
 if __name__ == "__main__":
@@ -519,20 +934,28 @@ if __name__ == "__main__":
     logging.info("...Generat[ed] Toots")
 
     logging.info("Look[ing] up Geospatial Footprint...")
-    sa_augmenter.lookup_geospatial_footprint()
+    sa_augmenter.lookup_area_geospatial_footprint()
     logging.info("...Look[ed] up Geospatial Footprint")
 
-    logging.info("Look[ing] up Image Filenames...")
-    sa_augmenter.lookup_geospatial_image_link()
-    logging.info("...Look[ed] up Image Filenames")
+    logging.info("Inferr[ing] Wards...")
+    sa_augmenter.infer_area("Wards", "WARD_NAME", "inferred_wards", "WARD_YEAR == 2021")
+    logging.info("...Inferr[ed] Wards")
+
+    logging.info("Improv[ing] footprint precision")
+    sa_augmenter.lookup_location_geospatial_footprint()
+    logging.info("Improv[ed] footprint precision")
 
     logging.info("Inferr[ing] Suburbs...")
     sa_augmenter.infer_area("Official planning suburbs", "OFC_SBRB_NAME", "inferred_suburbs")
     logging.info("...Inferr[ed] Suburbs")
 
-    logging.info("Inferr[ing] Wards...")
+    logging.info("Inferr[ing] Wards (again)...")
     sa_augmenter.infer_area("Wards", "WARD_NAME", "inferred_wards", "WARD_YEAR == 2021")
-    logging.info("...Inferr[ed] Wards")
+    logging.info("...Inferr[ed] Wards (again)")
+
+    logging.info("Look[ing] up Image Filenames...")
+    sa_augmenter.lookup_geospatial_image_link()
+    logging.info("...Look[ed] up Image Filenames")
 
     logging.info("Wr[iting] to Minio...")
     sa_augmenter.write_data_to_minio(sa_augmenter.data)
