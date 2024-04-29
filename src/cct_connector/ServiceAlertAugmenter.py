@@ -864,6 +864,9 @@ class ServiceAlertAugmenter(ServiceAlertBase.ServiceAlertsBase):
         if "area_type" not in self.data.columns:
             logging.warning("Area type not present in data, skipping geospatial lookups")
             return
+        elif self.data.empty:
+            logging.warning("Nothing to do here, skipping...")
+            return
 
         source_data = self.data[["area_type", "area", "location"]].copy()
         source_index = source_data.index.values
