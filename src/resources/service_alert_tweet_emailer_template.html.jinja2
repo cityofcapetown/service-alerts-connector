@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{{ email_subject }}</title>
@@ -49,6 +49,23 @@ tr {padding-bottom: 1em}
             <p style="font-size: 18px; font-weight: bold;">{{ post_text|replace("\n","<br>") }}</p>
         </td>
     </tr>
+    {% if image_path %}
+    <tr>
+        <td>
+            <h2>Affected Locations</h2>
+            <p style="background-color: #ffffcc; color: #000000; padding: 10px; border: 1px solid #000000; border-radius: 5px; font-weight: bold;">
+                <span style="margin-right: 10px; font-size: 20px;">⚠️</span>
+                DANGER. GEVAAR. INGOZI. We have created the map given below using a combination of the area type,
+                area and location fields. Some of this is captured from free text, and so is geocoded on a best effort
+                basis. The map below might be incomplete. Please crosscheck the map against the information given in the
+                table below.
+            </p>
+            <p>
+                <img src="cid:area_image_filename.png" style="min-width:200px;min-height:200px;max-width:600px;max-height:600px" width="600">
+            </p>
+        </td>
+    </tr>
+    {% endif %}
     <tr>
         <td>
             <h2>Service Alert Details</h2>
@@ -67,20 +84,6 @@ tr {padding-bottom: 1em}
 
         </td>
     </tr>
-    {% if image_path %}
-    <tr>
-        <td>
-            <h2>Affected Area</h2>
-            <p>
-                Based upon the <strong>area type</strong> and <strong>area</strong> of this service alert, this issue is
-                localised to this area:
-            </p>
-            <p>
-                <img src="cid:area_image_filename.png" style="min-width:200px;min-height:200px;max-width:600px;max-height:600px" width="600">
-            </p>
-        </td>
-    </tr>
-    {% endif %}
     <tr>
         <td>
             <h2>Why am I receiving this email?</h2>
