@@ -831,6 +831,10 @@ class ServiceAlertAugmenter(ServiceAlertBase.ServiceAlertsBase):
                 self.data[IMAGE_COL] = image_filename_lookup
 
     def infer_area(self, layer_name: str, layer_col: str, data_col_name: str, layer_query: str or None = None):
+        if self.data.empty:
+            logging.warning("No data, so skipping...")
+            return
+
         layer_gdf = _load_gis_layer(layer_name, layer_query)[[layer_col, "WKT"]].assign(
             layer_area=lambda gdf: gdf.geometry.area
         )
