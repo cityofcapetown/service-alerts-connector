@@ -6,6 +6,7 @@ import json
 import logging
 import os
 import pathlib
+import pprint
 import sys
 import tempfile
 import time
@@ -101,61 +102,47 @@ def _cached_geocoder_wrapper(address: str, geometry: str = 'wkt') -> typing.Dict
         return geocoder.geocode(address, geometry=geometry, timeout=GEOCODER_TIMEOUT)
 
 
-def _generate_polygons(location_suggestions: typing.List[str],
-                       ward: str or None,
-                       bounding_polygon: shapely.geometry.base) -> shapely.geometry.Polygon or None:
+def _geocode_location(address: str,
+                      bounding_polygon: shapely.geometry.base) -> shapely.geometry.base or None:
     output_shape = None
-    for location in location_suggestions:
-        # if this isn't a compound address, try a lookup against the suburb layer
-        if ',' not in location:
-            # NB do the query after the functional call, otherwise it triggers a fetch of the layer
-            location_lower = location.lower()
-            suburb = _load_gis_layer("Official Planning Suburb").query(
-                f"OFC_SBRB_NAME.str.lower() == @location_lower"
-            )
-            if suburb.shape[0] == 1:
-                logging.debug(f"Found {location} in suburbs layer, returning that result")
-                output_shape = suburb.iloc[0]["WKT"]
-                break
 
-        address_string = f"{location}, Cape Town"
-        for i in range(2):
-            geocoded_location = _cached_geocoder_wrapper(address_string)
+    if ',' not in address:
+        # NB do the query after the function call, otherwise it triggers a fetch of the layer
+        address_lower = address.lower()
+        suburb = _load_gis_layer("Official Planning Suburb").query(
+            f"OFC_SBRB_NAME.str.lower() == @address_lower"
+        )
+        if suburb.shape[0] == 1:
+            logging.debug(f"Found {address} in suburbs layer")
+            output_shape = suburb.iloc[0]["WKT"]
 
-            if geocoded_location is not None and "POINT" not in geocoded_location.raw["geotext"]:
-                # handling the general case where we get a polygon or linestring back
-                # generating location shape with suitable buffer
-                output_shape = shapely.wkt.loads(geocoded_location.raw["geotext"]).buffer(LOCATION_BUFFER)
-            elif geocoded_location is not None and "POINT" in geocoded_location.raw["geotext"]:
-                # handle point location - presume it's a suburb or something similar
-                south_lat, north_lat, west_lon, east_lon = geocoded_location.raw["boundingbox"]
-                output_shape = shapely.geometry.Polygon([
-                    (west_lon, south_lat),
-                    (east_lon, south_lat),
-                    (east_lon, north_lat),
-                    (west_lon, north_lat),
-                    (west_lon, south_lat)  # Closing the polygon
-                ])
+    if output_shape is None:
+        address_string = f"{address}, Cape Town"
+        geocoded_location = _cached_geocoder_wrapper(address_string)
 
-            # checking the location intersects with our bounding polygon
-            if shapely.intersects(output_shape, bounding_polygon):
-                logging.debug(f"{output_shape=}")
-                break
-            elif output_shape is not None:
-                logging.warning(
-                    "Geocoded location does **not** intersect with bounding polygon, rejecting this location")
-                output_shape = None
+        if geocoded_location is not None and "POINT" not in geocoded_location.raw["geotext"]:
+            # handling the general case where we get a polygon or linestring back
+            # generating location shape with suitable buffer
+            output_shape = shapely.wkt.loads(geocoded_location.raw["geotext"]).buffer(LOCATION_BUFFER)
+        elif geocoded_location is not None and "POINT" in geocoded_location.raw["geotext"]:
+            # handle point location - presume it's a suburb or something similar
+            south_lat, north_lat, west_lon, east_lon = geocoded_location.raw["boundingbox"]
+            output_shape = shapely.geometry.Polygon([
+                (west_lon, south_lat),
+                (east_lon, south_lat),
+                (east_lon, north_lat),
+                (west_lon, north_lat),
+                (west_lon, south_lat)  # Closing the polygon
+            ])
 
-            # trying again with the ward, since the location hasn't turned up anything
-            if ward is not None:
-                logging.debug(f"Address string {address_string} failed, attempting with ward")
-                address_string, *_ = address_string.split(",")
-                address_string += f", Ward {ward}, Cape Town"
-        else:
-            logging.debug(f"No location found for '{location}'")
-
-        if output_shape:
-            break
+    # finally, checking the location intersects with our bounding polygon
+    if shapely.intersects(output_shape, bounding_polygon):
+        logging.debug(f"{output_shape=}")
+    elif output_shape is not None:
+        logging.warning(
+            "Geocoded location does **not** intersect with bounding polygon, rejecting this location"
+        )
+        output_shape = None
 
     return output_shape
 
@@ -421,9 +408,9 @@ def _cptgpt_location_call_wrapper(location_dict: typing.Dict, http_session: requ
                     },
                     {
                         "role": "user",
-                        "content": "You responded with a malformed or incorrectly structured JSON array. Please fix this to"
-                                   "only be nested JSON array(s) of the location(s) in the last JSON object I proved you "
-                                   "with. Only return the JSON array."
+                        "content": "You responded with a malformed or incorrectly structured JSON array. "
+                                   "Please fix this to only be nested JSON array(s) of the location(s) in the last JSON"
+                                   " object I provided you with. Only return the corrected JSON array."
                     }
                 ]
             else:
@@ -705,6 +692,32 @@ def _generate_image_link(area_type: str, area: str, location: str or None, wkt_s
     return area_image_filename
 
 
+def _lookup_area_geospatial_footprint(area_df: pandas.DataFrame) -> pandas.Series:
+    logging.debug("Forming geospatial value lookup")
+    area_type_spatial_lookup = {
+        val: _load_gis_layer(val).set_index(AREA_LOOKUP[val][1])["WKT"].to_dict()
+        for val in area_df["area_type"].unique()
+        if val is not None and val not in AREA_TYPE_EXCLUSION_SET
+    }
+
+    area_lookup_df = area_df.query(
+        "area_type.notna() and ~area_type.isin(@AREA_TYPE_EXCLUSION_SET)"
+    ).apply(
+        lambda row: (
+            # reducing precision to 6 decimal places
+            shapely.wkt.dumps(
+                area_type_spatial_lookup[row["area_type"]][row["area"]],
+                rounding_precision=6
+            )
+            if row["area"] in area_type_spatial_lookup[row["area_type"]] else None
+        ),
+        axis=1
+    ).dropna()
+    logging.debug(f"{area_df.shape=}, {area_lookup_df.shape=}")
+
+    return area_lookup_df
+
+
 class ServiceAlertAugmenter(ServiceAlertBase.ServiceAlertsBase):
     def __init__(self, minio_read_name=FIXED_SA_NAME, minio_write_name=AUGMENTED_SA_NAME):
         super().__init__(None, None, minio_utils.DataClassification.LAKE,
@@ -804,31 +817,6 @@ class ServiceAlertAugmenter(ServiceAlertBase.ServiceAlertsBase):
             logging.warning(f"Skipping because '{source_col}' is not in the data!")
             logging.debug(f"{self.data.columns}")
 
-    def lookup_area_geospatial_footprint(self):
-        logging.debug("Forming geospatial value lookup")
-        area_type_spatial_lookup = {
-            val: _load_gis_layer(val).set_index(AREA_LOOKUP[val][1])["WKT"].to_dict()
-            for val in self.data["area_type"].unique()
-            if val is not None and val not in AREA_TYPE_EXCLUSION_SET
-        }
-
-        footprint_lookup = self.data.query(
-            "area_type.notna() and ~area_type.isin(@AREA_TYPE_EXCLUSION_SET)"
-        ).apply(
-            lambda row: (
-                # reducing precision to 6 decimal places
-                shapely.wkt.dumps(
-                    area_type_spatial_lookup[row["area_type"]][row["area"]],
-                    rounding_precision=6
-                )
-                if row["area"] in area_type_spatial_lookup[row["area_type"]] else None
-            ),
-            axis=1
-        ).dropna()
-
-        if not footprint_lookup.empty:
-            self.data["geospatial_footprint"] = footprint_lookup
-
     def lookup_geospatial_image_link(self):
         if "geospatial_footprint" in self.data.columns:
             image_filename_lookup = self.data.query(
@@ -873,48 +861,88 @@ class ServiceAlertAugmenter(ServiceAlertBase.ServiceAlertsBase):
             self.data[data_col_name] = area_lookup
 
     def lookup_location_geospatial_footprint(self):
-        source_data = self.data[["area", "location", "inferred_wards", "area_type", "geospatial_footprint"]].copy()
+        if "area_type" not in self.data.columns:
+            logging.warning("Area type not present in data, skipping geospatial lookups")
+            return
+
+        source_data = self.data[["area_type", "area", "location"]].copy()
         source_index = source_data.index.values
+
+        # loading up the layers we're going to use
+        area_polygons = _lookup_area_geospatial_footprint(source_data[["area_type", "area"]])
+        area_polygons = geopandas.GeoDataFrame(
+            geometry=area_polygons.apply(shapely.wkt.loads),
+            index=source_index
+        )
+        ward_polygons = _load_gis_layer("Wards", "WARD_YEAR == 2021")[
+            ["WARD_NAME", "WKT"]
+        ].set_index("WARD_NAME")
 
         json_dicts = source_data.to_dict(orient='records')
         with proxy_utils.setup_http_session() as session:
             for record_index, record in zip(source_index, tqdm(json_dicts)):
                 # todo implement cache lookup and skip, if possible
-
-                wards = pandas.Series(record["inferred_wards"]).dropna()
-                if wards.empty or wards.isna().all():
-                    wards = [None]
-                del record["inferred_wards"]
-
-                if record["area_type"] != "Official Planning Suburb":
-                    del record["area"]
-                    wards = [None]
-                del record["area_type"]
-
-                bounding_polygon = shapely.wkt.loads(record["geospatial_footprint"])
-                del record["geospatial_footprint"]
-
                 # Getting list of locations via LLM
-                llm_locations = _cptgpt_location_call_wrapper(record, session)
+                llm_record = {
+                    "area": record["area"],
+                    "location": record["location"],
+                }
+                if record["area_type"] != "Official Planning Suburb":
+                    del llm_record["area"]
+
+                llm_locations = _cptgpt_location_call_wrapper(llm_record, session)
                 logging.debug(f"{llm_locations=}")
 
-                if llm_locations is None:
+                if llm_locations is None or len(llm_locations) == 0:
                     logging.warning(f"Skipping {record}, empty response from LLM")
                     continue
 
-                # Try geocode locations
-                location_polygons = set(filter(lambda val: val is not None, (
-                    _generate_polygons(location_suggestions, ward, bounding_polygon)
-                    for location_suggestions in llm_locations
-                    for ward in wards
-                )))
+                # Getting relevant geometries for this record
+                area_polygon = area_polygons.loc[record_index, 'geometry']
+                intersecting_wards = ward_polygons.loc[
+                    ward_polygons.intersects(area_polygon)
+                ]
 
+                # Assemble list of location suggestions
+                location_suggestions = [
+                    # for each location, give the bounding polygon, as defined by the area type and area
+                    (llm_location, area_polygon)
+                    for llm_location_suggestion_list in llm_locations
+                    for llm_location in llm_location_suggestion_list
+                ] + [
+                    # for each location that looks like a street address,
+                    # also generate an entry per relevant ward, per address
+                    (llm_location.split(',')[0] + f", Ward {ward}",
+                     ward_polygons.loc[ward, "WKT"])
+                    for llm_location_suggestion_list in llm_locations
+                    for llm_location in llm_location_suggestion_list
+                    for ward in intersecting_wards.index
+                    # this is some sort of compound address
+                    if ',' in llm_location
+                ]
+                logging.debug(f"location_suggestions:\n{pprint.pformat(location_suggestions)}",)
+
+                # geocode away!
+                location_polygons = set((
+                    _geocode_location(address, bounding_polygon)
+                    for address, bounding_polygon in location_suggestions
+                )) - {None}
+
+                # combining results
                 if len(location_polygons) > 0:
+                    logging.debug(f"Merging {len(location_polygons)} polygons for {record_index}")
                     # merging all the polygons together
-                    merged_location_polygons = shapely.unary_union(list(location_polygons))
-                    # rounding the precision when outputting the data
-                    self.data.loc[record_index, "geospatial_footprint"] = shapely.wkt.dumps(merged_location_polygons,
-                                                                                            rounding_precision=6)
+                    record_polygon = shapely.unary_union(list(location_polygons))
+
+                # otherwise, falling back to area polygon
+                else:
+                    logging.warning(f"Location geocoding failed for {record_index}, "
+                                    f"falling back to {record['area_type']} - {record['area']} polygon")
+                    record_polygon = area_polygon
+
+                # rounding the precision
+                self.data.loc[record_index, "geospatial_footprint"] = shapely.wkt.dumps(record_polygon,
+                                                                                        rounding_precision=6)
 
 
 if __name__ == "__main__":
@@ -933,25 +961,17 @@ if __name__ == "__main__":
     sa_augmenter.add_social_media_posts_with_hashtags()
     logging.info("...Generat[ed] Toots")
 
-    logging.info("Look[ing] up Geospatial Footprint...")
-    sa_augmenter.lookup_area_geospatial_footprint()
-    logging.info("...Look[ed] up Geospatial Footprint")
-
-    logging.info("Inferr[ing] Wards...")
-    sa_augmenter.infer_area("Wards", "WARD_NAME", "inferred_wards", "WARD_YEAR == 2021")
-    logging.info("...Inferr[ed] Wards")
-
-    logging.info("Improv[ing] footprint precision")
+    logging.info("Add[ing] geospatial footprints")
     sa_augmenter.lookup_location_geospatial_footprint()
-    logging.info("Improv[ed] footprint precision")
+    logging.info("Add[ed] geospatial footprints")
 
     logging.info("Inferr[ing] Suburbs...")
     sa_augmenter.infer_area("Official planning suburbs", "OFC_SBRB_NAME", "inferred_suburbs")
     logging.info("...Inferr[ed] Suburbs")
 
-    logging.info("Inferr[ing] Wards (again)...")
+    logging.info("Inferr[ing] Wards...")
     sa_augmenter.infer_area("Wards", "WARD_NAME", "inferred_wards", "WARD_YEAR == 2021")
-    logging.info("...Inferr[ed] Wards (again)")
+    logging.info("...Inferr[ed] Wards")
 
     logging.info("Look[ing] up Image Filenames...")
     sa_augmenter.lookup_geospatial_image_link()
