@@ -534,7 +534,7 @@ def _cptgpt_summarise_call_wrapper(message_dict: typing.Dict, http_session: requ
 
             response_text = response_data['choices'][0]['message']['content']
 
-            post_too_long = len(response_text) < max_post_length
+            post_too_long = len(response_text) > max_post_length
             assert not post_too_long, "Text too long!"
 
             post_just_one_char = len(set(response_text)) == 1
