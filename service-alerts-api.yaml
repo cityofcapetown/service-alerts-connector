@@ -19,13 +19,18 @@ tags:
     description: "Second version of API with AI-generated social media post fields"
 
 paths:
-  /coct-service_alerts-current-unplanned.json:
+  /coct-service_alerts-{timeFrame}-{planned}.json:
     get:
       tags:
         - "v0"
       deprecated: true
-      summary: Current unplanned outages
-      description: Get all currently active unplanned service outages
+      summary: List service alerts
+      description: Get all service alerts, according to the parameters set.
+      parameters:
+        - $ref: '#/components/parameters/timeFrame'
+          name: timeFrame
+        - $ref: '#/components/parameters/planned'
+          name: planned
       responses:
         '200':
           description: Successful response
@@ -35,167 +40,19 @@ paths:
                 type: array
                 items:
                   $ref: '#/components/schemas/ServiceAlertV0'
-  /coct-service_alerts-current-planned.json:
-    get:
-      tags:
-        - "v0"
-      deprecated: true
-      summary: Current planned outages
-      description: Get all currently active planned service outages
-      responses:
-        '200':
-          description: Successful response
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/ServiceAlertV0'
-  /coct-service_alerts-7days-unplanned.json:
-    get:
-      tags:
-        - "v0"
-      deprecated: true
-      summary: Unplanned outages for Last 7 Days
-      description: Get all unplanned service outages active over the last 7 days
-      responses:
-        '200':
-          description: Successful response
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/ServiceAlertV0'
-  /coct-service_alerts-7days-planned.json:
-    get:
-      tags:
-        - "v0"
-      deprecated: true
-      summary: Planned Outages for Last 7 Days
-      description: Get all planned service outages active in the last 7 days
-      responses:
-        '200':
-          description: Successful response
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/ServiceAlertV0'
-  /coct-service_alerts-all-unplanned.json:
-    get:
-      tags:
-        - "v0"
-      deprecated: true
-      summary: All unplanned outages
-      description: Get all unplanned service outages going back several years
-      responses:
-        '200':
-          description: Successful response
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/ServiceAlertV0'
-  /coct-service_alerts-all-planned.json:
-    get:
-      tags:
-        - "v0"
-      deprecated: true
-      summary: All planned outages
-      description: Get all planned service outages going back several years
-      responses:
-        '200':
-          description: Successful response
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/ServiceAlertV0'
-  /v1/coct-service_alerts-current-unplanned.json:
-    get:
-      tags:
-        - "v1"
-      summary: Current unplanned outages
-      description: Get all currently active unplanned service outages with social media fields
-      responses:
-        '200':
-          description: Successful response
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/ServiceAlertV1'
-  /v1/coct-service_alerts-current-planned.json:
-    get:
-      tags:
-        - "v1"
-      summary: Current planned outages
-      description: Get all currently active planned service outages with social media fields
-      responses:
-        '200':
-          description: Successful response
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/ServiceAlertV0'
-  /v1/coct-service_alerts-7days-unplanned.json:
-    get:
-      tags:
-        - "v1"
-      summary: Unplanned outages for Last 7 Days
-      description: Get all unplanned service outages active over the last 7 days with social media fields
-      responses:
-        '200':
-          description: Successful response
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/ServiceAlertV0'
-  /v1/coct-service_alerts-7days-planned.json:
-    get:
-      tags:
-        - "v1"
-      summary: Planned Outages for Last 7 Days
-      description: Get all planned service outages active in the last 7 days with social media fields
-      responses:
-        '200':
-          description: Successful response
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/ServiceAlertV0'
-  /v1/coct-service_alerts-all-unplanned.json:
-    get:
-      tags:
-        - "v1"
-      summary: All unplanned outages
-      description: Get all unplanned service outages going back several years with social media fields.
-      responses:
-        '200':
-          description: Successful response
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/ServiceAlertV1'
-  /v1/coct-service_alerts-all-planned.json:
+  /v1/coct-service_alerts-{timeFrame}-{planned}.json:
     get:
       tags:
         - "v1"
       summary: All planned outages
       description: Get all planned service outages going back several years with social media fields.
+      deprecated: true
+      description: Get all service alerts, according to the parameters set with additional social media fields.
+      parameters:
+        - $ref: '#/components/parameters/timeFrame'
+          name: timeFrame
+        - $ref: '#/components/parameters/planned'
+          name: planned
       responses:
         '200':
           description: Successful response
@@ -206,18 +63,15 @@ paths:
                 items:
                   $ref: '#/components/schemas/ServiceAlertV1'
   /v1/alerts/{alert_id}.json:
+  /v1/alerts/{alertId}.json:
     get:
       tags:
         - "v1"
       summary: Get a specific service alert by ID
       description: Retrieve detailed information about a service alert by its unique ID
       parameters:
-        - name: alert_id
-          in: path
-          description: ID of the service alert to retrieve
-          required: true
-          schema:
-            type: integer
+        - name: alertId
+          $ref: '#/components/parameters/alertId'
       responses:
         '200':
           description: Successful response
@@ -226,6 +80,32 @@ paths:
               schema:
                 $ref: '#/components/schemas/ServiceAlertV1'
 components:
+  parameters:
+    timeFrame:
+      in: path
+      description: Time frame from which select service alerts will be listed.
+      schema:
+        type: string
+        enum:
+          - current
+          - 7days
+          - all
+      required: true
+    planned:
+      in: path
+      description: Whether this potential outage was a result of planned maintenance or not.
+      schema:
+        type: string
+        enum:
+          - planned
+          - unplanned
+      required: true
+    alertId:
+      in: path
+      description: ID of the service alert to retrieve
+      required: true
+      schema:
+        type: integer
   schemas:
     ServiceAlertV0:
       type: object
@@ -321,9 +201,9 @@ components:
           properties:
             tweet_text:
               type: string
-              description: 280 character or less summary of the service alert, formatted with social media in mind. Generated using wizardlm-13B LLM.
+              description: 280 character or less summary of the service alert, formatted with social media in mind. Generated using wizardlm-13B or Llama3-8B LLM.
               example: " 🚧Burst Pipe🚧\n📍Pinoak Avenue, Vredehoek\n⏰Feb 14, 6:35 PM - Feb 15, 12:35 AM\nUnexpected water outage due to burst pipe. For assistance, use request number 9116664427 when contacting the City."
             toot_text:
               type: string
-              description: 300 character or less summary of the service alert, formatted with social media in mind. Includes hashtags for the sake of indexing. Generated using wizardlm-13B LLM.
+              description: 300 character or less summary of the service alert, formatted with social media in mind. Includes hashtags for the sake of indexing. Generated using wizardlm-13B or Llama-8B LLM.
               example: " 🚧Burst Pipe🚧\n📍Pinoak Avenue, Vredehoek\n⏰Feb 14, 6:35 PM - Feb 15, 12:35 AM\nUnexpected burst water issue. For assistance, contact City with request number 9116664427\n#CapeTown #Water&Sanitation"
