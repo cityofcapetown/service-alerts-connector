@@ -458,17 +458,6 @@ def _cptgpt_summarise_call_wrapper(message_dict: typing.Dict, http_session: requ
                 "🔌⚠️ Electricity service outage in Lwandle, Noxolo st & surrounding areas. Cable stolen. Restoration "
                 "expected by 1pm, 23 Sep. For more info, contact City with request number 9115677540"
             )},
-            # {"role": "user", "content": (
-            #     '{"service_area": "Water & Sanitation","title": "Water Outages",'
-            #     '"description": "Replacing of Fire Hydrant","area": "Parklands","location": "Gie Road, Parklands",'
-            #     '"start_timestamp": "2023-09-28T12:00:00+02:00",'
-            #     '"forecast_end_timestamp": "2023-09-29T20:00:00+02:00","planned": true,"request_number":"9115690645"}'
-            # )},
-            # {"role": "assistant", "content": (
-            #     "🚧Water Outages🚧\n📍Gie Road, Parklands\n⏰Sep 28, 12:00 PM - Sep 29, 8:00 PM\n"
-            #     "Potential water outage while replacing Fire Hydrant. Please use request number 9115690645 when "
-            #     "contacting the City"
-            # )},
             {"role": "user", "content": (
                 '{"service_area": "Water & Sanitation","title": "Burst Water Main",'
                 '"description": "Water streaming down the road. Both sides of road affected. '
@@ -482,7 +471,25 @@ def _cptgpt_summarise_call_wrapper(message_dict: typing.Dict, http_session: requ
                 "Water running down both sides of the road. Motorists to exercise caution. Please use request number "
                 "9116963417 when contacting the City"
             )},
-
+            {
+                "role": "user",
+                "content": (
+                    "{\"service_area\": \"Electricity\", \"title\": \"Electrical Maintenance - "
+                    "Kiosk Replacement/repair\", \"description\": \"Electricity supply affected in surrounding "
+                    "area due to replacement of kiosk.\", \"area\": \"DURBANVILLE\", \"location\": \"Jagger St\", "
+                    "\"start_timestamp\": \"2024-04-30T06:00:00.000Z\", "
+                    "\"forecast_end_timestamp\": \"2024-04-30T14:00:00.000Z\", "
+                    "\"planned\": true}"
+                )},
+            {
+                "role": "assistant",
+                "content": (
+                    "🔌 Planned Electrical Maintenance in Durbanville\n📍 Jagger St\n⏰ Apr 30, 8am - 4pm\n"
+                    "Electricity supply affected due to kiosk replacement. Please note that this is a planned "
+                    "outage and we apologise for any inconvenience caused. For more info, contact the City on "
+                    "0860 103 089"
+                )
+            },
             {"role": "user", "content": json.dumps(message_dict)},
         ],
         "temperature": 0.2,
@@ -533,7 +540,6 @@ def _cptgpt_summarise_call_wrapper(message_dict: typing.Dict, http_session: requ
             logging.debug(f"{response_data=}")
 
             response_text = response_data['choices'][0]['message']['content']
-
             post_too_long = len(response_text) > max_post_length
             assert not post_too_long, "Text too long!"
 
@@ -919,22 +925,22 @@ class ServiceAlertAugmenter(ServiceAlertBase.ServiceAlertsBase):
 
                 # Assemble list of location suggestions
                 location_suggestions = [
-                    # for each location, give the bounding polygon, as defined by the area type and area
-                    (llm_location, area_polygon)
-                    for llm_location_suggestion_list in llm_locations
-                    for llm_location in llm_location_suggestion_list
-                ] + [
-                    # for each location that looks like a street address,
-                    # also generate an entry per relevant ward, per address
-                    (llm_location.split(',')[0] + f", Ward {ward}",
-                     area_polygon)
-                    for llm_location_suggestion_list in llm_locations
-                    for llm_location in llm_location_suggestion_list
-                    for ward in intersecting_wards.index
-                    # this is some sort of compound address
-                    if ',' in llm_location
-                ]
-                logging.debug(f"location_suggestions:\n{pprint.pformat(location_suggestions)}",)
+                                           # for each location, give the bounding polygon, as defined by the area type and area
+                                           (llm_location, area_polygon)
+                                           for llm_location_suggestion_list in llm_locations
+                                           for llm_location in llm_location_suggestion_list
+                                       ] + [
+                                           # for each location that looks like a street address,
+                                           # also generate an entry per relevant ward, per address
+                                           (llm_location.split(',')[0] + f", Ward {ward}",
+                                            area_polygon)
+                                           for llm_location_suggestion_list in llm_locations
+                                           for llm_location in llm_location_suggestion_list
+                                           for ward in intersecting_wards.index
+                                           # this is some sort of compound address
+                                           if ',' in llm_location
+                                       ]
+                logging.debug(f"location_suggestions:\n{pprint.pformat(location_suggestions)}", )
 
                 # geocode away!
                 location_polygons = set((
