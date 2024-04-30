@@ -514,6 +514,8 @@ def _cptgpt_summarise_call_wrapper(message_dict: typing.Dict, http_session: requ
     last_error = None
     response_text = ""
     for t in range(3):
+        post_too_long = False
+        post_just_one_char = False
         try:
             rough_token_count = (len(json.dumps(params)) // 4) * 1.2 + 256
             expected_response_tokens = int((max_post_length // 4) * 2)
@@ -532,42 +534,47 @@ def _cptgpt_summarise_call_wrapper(message_dict: typing.Dict, http_session: requ
 
             response_text = response_data['choices'][0]['message']['content']
 
-            assert len(response_text) < max_post_length, "Text too long!"
+            post_too_long = len(response_text) < max_post_length
+            assert not post_too_long, "Text too long!"
+
+            post_just_one_char = len(set(response_text)) == 1
+            assert not post_just_one_char, "Only one character returned!"
 
             return response_text
         except AssertionError as e:
-            params["messages"] = [
-                {"role": "system", "content": (
-                    f'You shorten posts for social media. Please reason step by step summarise the post that follows to '
-                    f'no more than {max_post_length} characters. Summarise any long lists using words like multiple or '
-                    'many. Prioritise dates and area information over the causes of issues. Only return the content of '
-                    'the final summarised post.'
-                )},
-                {"role": "user", "content": (
-                    '🚮 Refuse collection delays in Woodlands, Waters, Sea Point, Claremont, Lansdowne, Garlandale, '
-                    'Bellville Industrial, Bellrail, Bville CBD, Sanlamhof, Dunrobin, Stikland, Saxon Industrial, '
-                    'Ravensmead, Parow Industrial, Parow Industria, Epping 2. Due to strike action. Leave bin out until'
-                    ' 21:00 if not serviced. Take bin onto property & place out by 06:30 the following day.'
-                )},
-                {"role": "assistant", "content": (
-                    '🚮Refuse collection delays affecting multiple areas🚮. Leave bin out until 21:00 if not serviced,'
-                    'and then put out again by 06:30 the next day'
-                )},
-                {"role": "user", "content": (
-                    '🚧 Planned Maintenance 🚧\n'
-                    '📍Die Wingerd, Greenway Rise, Stuart\'s Hill, Martinville, Schapenberg, Hageland Estate, '
-                    'Sea View Lake Estate, Cherrywood Gardens (Bizweni - Somerset West)\n'
-                    '⏰Thursday, 21:00 - 04:00\n'
-                    'Zero-pressure testing on the water supply network'
-                )},
-                {"role": "assistant", "content": (
-                    '🚧 Planned Maintenance 🚧\n'
-                    '📍Multiple Areas\n'
-                    '⏰Thursday, 21:00 - 04:00\n'
-                    'Zero-pressure testing on the water supply network'
-                )},
-                {"role": "user", "content": response_text},
-            ]
+            if post_too_long:
+                params["messages"] = [
+                    {"role": "system", "content": (
+                        f'You shorten posts for social media. Please reason step by step summarise the post that follows to '
+                        f'no more than {max_post_length} characters. Summarise any long lists using words like multiple or '
+                        'many. Prioritise dates and area information over the causes of issues. Only return the content of '
+                        'the final summarised post.'
+                    )},
+                    {"role": "user", "content": (
+                        '🚮 Refuse collection delays in Woodlands, Waters, Sea Point, Claremont, Lansdowne, Garlandale, '
+                        'Bellville Industrial, Bellrail, Bville CBD, Sanlamhof, Dunrobin, Stikland, Saxon Industrial, '
+                        'Ravensmead, Parow Industrial, Parow Industria, Epping 2. Due to strike action. Leave bin out until'
+                        ' 21:00 if not serviced. Take bin onto property & place out by 06:30 the following day.'
+                    )},
+                    {"role": "assistant", "content": (
+                        '🚮Refuse collection delays affecting multiple areas🚮. Leave bin out until 21:00 if not serviced,'
+                        'and then put out again by 06:30 the next day'
+                    )},
+                    {"role": "user", "content": (
+                        '🚧 Planned Maintenance 🚧\n'
+                        '📍Die Wingerd, Greenway Rise, Stuart\'s Hill, Martinville, Schapenberg, Hageland Estate, '
+                        'Sea View Lake Estate, Cherrywood Gardens (Bizweni - Somerset West)\n'
+                        '⏰Thursday, 21:00 - 04:00\n'
+                        'Zero-pressure testing on the water supply network'
+                    )},
+                    {"role": "assistant", "content": (
+                        '🚧 Planned Maintenance 🚧\n'
+                        '📍Multiple Areas\n'
+                        '⏰Thursday, 21:00 - 04:00\n'
+                        'Zero-pressure testing on the water supply network'
+                    )},
+                    {"role": "user", "content": response_text},
+                ]
 
             params["temperature"] += 0.2
 
