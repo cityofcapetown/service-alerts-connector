@@ -927,7 +927,7 @@ class ServiceAlertAugmenter(ServiceAlertBase.ServiceAlertsBase):
                     # for each location that looks like a street address,
                     # also generate an entry per relevant ward, per address
                     (llm_location.split(',')[0] + f", Ward {ward}",
-                     ward_polygons.loc[ward, "WKT"])
+                     area_polygon)
                     for llm_location_suggestion_list in llm_locations
                     for llm_location in llm_location_suggestion_list
                     for ward in intersecting_wards.index
