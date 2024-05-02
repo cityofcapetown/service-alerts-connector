@@ -484,7 +484,9 @@ def _cptgpt_summarise_call_wrapper(message_dict: typing.Dict, http_session: requ
             {
                 "role": "assistant",
                 "content": (
-                    "🔌 Planned Electrical Maintenance in Durbanville\n📍 Jagger St\n⏰ Apr 30, 8am - 4pm\n"
+                    "🔌 Planned Electrical Maintenance in Durbanville\n"
+                    "📍 Jagger St\n"
+                    "⏰ Apr 30, 8am - 4pm\n"
                     "Electricity supply affected due to kiosk replacement. Please note that this is a planned "
                     "outage and we apologise for any inconvenience caused. For more info, contact the City on "
                     "0860 103 089"
@@ -962,7 +964,7 @@ class ServiceAlertAugmenter(ServiceAlertBase.ServiceAlertsBase):
 
                 # rounding the precision
                 self.data.loc[record_index, "geospatial_footprint"] = shapely.wkt.dumps(record_polygon,
-                                                                                        rounding_precision=6)
+                                                                                        rounding_precision=5)
 
 
 if __name__ == "__main__":
