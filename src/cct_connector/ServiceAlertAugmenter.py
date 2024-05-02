@@ -135,6 +135,10 @@ def _geocode_location(address: str,
                 (west_lon, south_lat)  # Closing the polygon
             ])
 
+    if output_shape is not None and not shapely.is_valid(output_shape):
+        logging.warning("Invalid shape!")
+        output_shape = None
+
     # finally, checking the location intersects with our bounding polygon
     if shapely.intersects(output_shape, bounding_polygon):
         logging.debug(f"{output_shape=}")
@@ -964,7 +968,7 @@ class ServiceAlertAugmenter(ServiceAlertBase.ServiceAlertsBase):
 
                 # rounding the precision
                 self.data.loc[record_index, "geospatial_footprint"] = shapely.wkt.dumps(record_polygon,
-                                                                                        rounding_precision=5)
+                                                                                        rounding_precision=6)
 
 
 if __name__ == "__main__":
