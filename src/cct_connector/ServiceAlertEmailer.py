@@ -117,6 +117,15 @@ SA_EMAIL_CONFIGS = [
                              ("Aidan", "AidanKarl.vandenHeever@capetown.gov.za"),),
                             "all planned electricity alerts",
                             _service_area_curry_pot("Electricity")),
+    # Electricity-specific
+    ServiceAlertEmailConfig("current", True, "v1", EMAIL_COLS,
+                            (("Melissa", "Melissa.DeSousaAlves@capetown.gov.za"),),
+                            "all planned water and sanitation work",
+                            _service_area_curry_pot("Water & Sanitation")),
+    ServiceAlertEmailConfig("current", False, "v1", EMAIL_COLS,
+                            (("Melissa", "Melissa.DeSousaAlves@capetown.gov.za"),),
+                            "all unplanned water and sanitation alerts",
+                            _service_area_curry_pot("Water & Sanitation")),
     # Ward 115
     ServiceAlertEmailConfig("current", False, "v1", EMAIL_COLS,
                             (("Cllr McMahon", "Ian.McMahon@capetown.gov.za"),
