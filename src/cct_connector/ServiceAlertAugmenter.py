@@ -453,28 +453,36 @@ def _cptgpt_summarise_call_wrapper(message_dict: typing.Dict, http_session: requ
         "model": GPU_DRAFTING_MODEL,
         "messages": [
             {"role": "system", "content": system_prompt},
-            {"role": "user", "content": (
-                '{"service_area":"Electricity","title":"Cable stolen","description":"Cable stolen","area":"LWANDLE",'
-                ' "location":"Noxolo st&surr…","start_timestamp":"2023-09-21T09:00:00+02:00",'
-                ' "forecast_end_timestamp":"2023-09-23T13:00:00+02:00","planned":false,"request_number":"9115677540"}'
-            )},
-            {"role": "assistant", "content": (
-                "🔌⚠️ Electricity service outage in Lwandle, Noxolo st & surrounding areas. Cable stolen. Restoration "
-                "expected by 1pm, 23 Sep. For more info, contact City with request number 9115677540"
-            )},
-            {"role": "user", "content": (
-                '{"service_area": "Water & Sanitation","title": "Burst Water Main",'
-                '"description": "Water streaming down the road. Both sides of road affected. '
-                'Motorists to exercise caution. Maintenance team to conduct repairs asap.",'
-                '"area": "SONEIKE II","location": "PAUL KRUGER, SONEIKE II",'
-                '"start_timestamp": "2024-03-28T14:32:00","forecast_end_timestamp": "2024-03-29T20:00:00",'
-                '"planned": false,"request_number": "9116963417","subtitle": "Running Water"}'
-            )},
-            {"role": "assistant", "content": (
-                "🚧Burst Water Main🚧\n📍Paul Kruger, Soneike\n⏰Mar 28, 14:32 PM - Mar 29, 8:00 PM\n"
-                "Water running down both sides of the road. Motorists to exercise caution. Please use request number "
-                "9116963417 when contacting the City"
-            )},
+            {
+                "role": "user",
+                "content": (
+                    '{"service_area":"Electricity","title":"Cable stolen","description":"Cable stolen","area":"LWANDLE",'
+                    ' "location":"Noxolo st&surr…","start_timestamp":"2023-09-21T09:00:00+02:00",'
+                    ' "forecast_end_timestamp":"2023-09-23T13:00:00+02:00","planned":false,"request_number":"9115677540"}'
+                )},
+            {
+                "role": "assistant",
+                "content": (
+                    "🔌⚠️ Electricity service outage in Lwandle, Noxolo st & surrounding areas. Cable stolen. Restoration "
+                    "expected by 1pm, 23 Sep. For more info, contact City with request number 9115677540"
+                )},
+            {
+                "role": "user",
+                "content": (
+                    '{"service_area": "Water & Sanitation","title": "Burst Water Main",'
+                    '"description": "Water streaming down the road. Both sides of road affected. '
+                    'Motorists to exercise caution. Maintenance team to conduct repairs asap.",'
+                    '"area": "SONEIKE II","location": "PAUL KRUGER, SONEIKE II",'
+                    '"start_timestamp": "2024-03-28T14:32:00","forecast_end_timestamp": "2024-03-29T20:00:00",'
+                    '"planned": false,"request_number": "9116963417","subtitle": "Running Water"}'
+                )},
+            {
+                "role": "assistant",
+                "content": (
+                    "🚧Burst Water Main🚧\n📍Paul Kruger, Soneike\n⏰Mar 28, 14:32 PM - Mar 29, 8:00 PM\n"
+                    "Water running down both sides of the road. Motorists to exercise caution. Please use request number "
+                    "9116963417 when contacting the City"
+                )},
             {
                 "role": "user",
                 "content": (
@@ -927,7 +935,7 @@ class ServiceAlertAugmenter(ServiceAlertBase.ServiceAlertsBase):
                 area_polygon = area_polygons.loc[record_index, 'geometry']
                 intersecting_wards = ward_polygons.loc[
                     ward_polygons.intersects(area_polygon)
-                ]
+                ] if pandas.notna(area_polygon) else []
 
                 # Assemble list of location suggestions
                 location_suggestions = [
