@@ -935,7 +935,7 @@ class ServiceAlertAugmenter(ServiceAlertBase.ServiceAlertsBase):
                 area_polygon = area_polygons.loc[record_index, 'geometry']
                 intersecting_wards = ward_polygons.loc[
                     ward_polygons.intersects(area_polygon)
-                ] if pandas.notna(area_polygon) else []
+                ] if pandas.notna(area_polygon) else pandas.Series([])
 
                 # Assemble list of location suggestions
                 location_suggestions = [
