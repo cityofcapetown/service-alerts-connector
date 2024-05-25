@@ -37,7 +37,7 @@ from cct_connector import (
 CPTGPT_GPU_ENDPOINT = "https://datascience.capetown.gov.za/cptgpt-dev/v1/chat/completions"
 GPU_DRAFTING_MODEL = "llama3-8b-it-q5"
 CPTGPT_FALLBACK_ENDPOINT = "https://datascience.capetown.gov.za/cptgpt/v1/chat/completions"
-FALLBACK_DRAFTING_MODEL = "wizardlm-13b-q5"
+FALLBACK_DRAFTING_MODEL = "wizardlm-13b-q5-gguf"
 DRAFT_LIMIT = 10
 PROMPT_LENGTH_LIMIT = 4096
 DRAFT_TIMEOUT = 300
