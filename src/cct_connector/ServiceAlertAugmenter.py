@@ -927,52 +927,57 @@ class ServiceAlertAugmenter(ServiceAlertBase.ServiceAlertsBase):
                 llm_locations = _cptgpt_location_call_wrapper(llm_record, session)
                 logging.debug(f"{llm_locations=}")
 
-                if llm_locations is None or len(llm_locations) == 0:
-                    logging.warning(f"Skipping {record}, empty response from LLM")
-                    continue
-
-                # Getting relevant geometries for this record
                 area_polygon = area_polygons.loc[record_index, 'geometry']
-                intersecting_wards = ward_polygons.loc[
-                    ward_polygons.intersects(area_polygon)
-                ] if pandas.notna(area_polygon) else pandas.Series([])
+                if llm_locations is None or len(llm_locations) == 0:
+                    logging.warning(f"Empty response from LLM for {record}, falling back to area polygon")
+                    record_polygon = area_polygon
+                else:
+                    # Getting relevant geometries for this record
+                    intersecting_wards = ward_polygons.loc[
+                        ward_polygons.intersects(area_polygon)
+                    ] if pandas.notna(area_polygon) else pandas.Series([])
 
-                # Assemble list of location suggestions
-                location_suggestions = [
-                                           # for each location, give the bounding polygon, as defined by the area type and area
-                                           (llm_location, area_polygon)
-                                           for llm_location_suggestion_list in llm_locations
-                                           for llm_location in llm_location_suggestion_list
-                                       ] + [
-                                           # for each location that looks like a street address,
-                                           # also generate an entry per relevant ward, per address
-                                           (llm_location.split(',')[0] + f", Ward {ward}",
-                                            area_polygon)
-                                           for llm_location_suggestion_list in llm_locations
-                                           for llm_location in llm_location_suggestion_list
-                                           for ward in intersecting_wards.index
-                                           # this is some sort of compound address
-                                           if ',' in llm_location
-                                       ]
-                logging.debug(f"location_suggestions:\n{pprint.pformat(location_suggestions)}", )
+                    # Assemble list of location suggestions
+                    location_suggestions = [
+                                               # for each location, give the bounding polygon, as defined by the area type and area
+                                               (llm_location, area_polygon)
+                                               for llm_location_suggestion_list in llm_locations
+                                               for llm_location in llm_location_suggestion_list
+                                           ] + [
+                                               # for each location that looks like a street address,
+                                               # also generate an entry per relevant ward, per address
+                                               (llm_location.split(',')[0] + f", Ward {ward}",
+                                                area_polygon)
+                                               for llm_location_suggestion_list in llm_locations
+                                               for llm_location in llm_location_suggestion_list
+                                               for ward in intersecting_wards.index
+                                               # this is some sort of compound address
+                                               if ',' in llm_location
+                                           ]
+                    logging.debug(f"location_suggestions:\n{pprint.pformat(location_suggestions)}", )
 
                 # geocode away!
                 location_polygons = set((
                     _geocode_location(address, bounding_polygon)
                     for address, bounding_polygon in location_suggestions
                 )) - {None}
+                    # geocode away!
+                    location_polygons = set((
+                        _geocode_location(address, bounding_polygon)
+                        for address, bounding_polygon in location_suggestions
+                    )) - {None}
 
-                # combining results
-                if len(location_polygons) > 0:
-                    logging.debug(f"Merging {len(location_polygons)} polygons for {record_index}")
-                    # merging all the polygons together
-                    record_polygon = shapely.unary_union(list(location_polygons))
+                    # combining results
+                    if len(location_polygons) > 0:
+                        logging.debug(f"Merging {len(location_polygons)} polygons for {record_index}")
+                        # merging all the polygons together
+                        record_polygon = shapely.unary_union(list(location_polygons))
 
-                # otherwise, falling back to area polygon
-                else:
-                    logging.warning(f"Location geocoding failed for {record_index}, "
-                                    f"falling back to {record['area_type']} - {record['area']} polygon")
-                    record_polygon = area_polygon
+                    # otherwise, also falling back to area polygon
+                    else:
+                        logging.warning(f"Location geocoding failed for {record_index}, "
+                                        f"falling back to {record['area_type']} - {record['area']} polygon")
+                        record_polygon = area_polygon
 
                 # rounding the precision
                 self.data.loc[record_index, "geospatial_footprint"] = shapely.wkt.dumps(record_polygon,
