@@ -10,6 +10,7 @@ from cct_connector import ServiceAlertBase
 from cct_connector import (
     AUGMENTED_SA_NAME, SERVICE_ALERTS_S3_BUCKET,
     ID_COL, TWEET_COL, TOOT_COL,
+    GEOSPATIAL_COL,
 )
 
 
@@ -26,8 +27,14 @@ class ServiceAlertOutputFileConfig:
 
         planned_str = "planned" if self.planned else "unplanned"
 
-        filename = f"coct-service_alerts-{time_str}-{planned_str}.json"
-        filepath = ((self.version + "/") if self.version != "v0" else "") + filename
+        filepath = (
+            f"coct-service_alerts-{time_str}-{planned_str}.json" if self.version == "v0" else
+            f"v1/coct-service_alerts-{time_str}-{planned_str}.json" if self.version == "v1" else
+            f"v1.1/service-alerts/{time_str}/{planned_str}" if self.version == "v1.1" else
+            None
+        )
+
+        assert filepath is not None, f"Don't know how to generate filepath for {self.version}!"
 
         return filepath
 
@@ -37,13 +44,15 @@ V0_COLS = [ID_COL, "service_area", "title", "description",
            "publish_date", "effective_date", "expiry_date", "start_timestamp", "forecast_end_timestamp",
            "planned", "request_number", ]
 V1_COLS = V0_COLS + [TWEET_COL, TOOT_COL]
+V1_1_COLS = V1_COLS + ["area_type", GEOSPATIAL_COL]
 
 BOK_CONFIGS = [
     ServiceAlertOutputFileConfig(time_window, planned, version, version_cols)
     for time_window in [None, 7, "current"]
     for planned in [True, False]
     for version, version_cols in (('v0', V0_COLS),
-                                  ('v1', V1_COLS))
+                                  ('v1', V1_COLS),
+                                  ('v1.1', V1_1_COLS))
 ]
 
 EXPIRY_COL = 'expiry_date'

@@ -21,6 +21,7 @@ TWEET_COL = "tweet_text"
 TOOT_COL = "toot_text"
 ID_COL = "Id"
 IMAGE_COL = "image_filename"
+GEOSPATIAL_COL = "geospatial_footprint"
 
 # Output Data
 SERVICE_ALERTS_S3_BUCKET = "coct-service-alerts"

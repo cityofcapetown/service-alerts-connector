@@ -30,7 +30,7 @@ from cct_connector import ServiceAlertBase
 from cct_connector import (
     FIXED_SA_NAME, AUGMENTED_SA_NAME, SERVICE_ALERTS_PREFIX,
     AUGMENTER_SALT,
-    ID_COL, TWEET_COL, TOOT_COL, IMAGE_COL,
+    ID_COL, TWEET_COL, TOOT_COL, IMAGE_COL, GEOSPATIAL_COL,
 )
 
 # Internal LLM consts
@@ -795,7 +795,7 @@ class ServiceAlertAugmenter(ServiceAlertBase.ServiceAlertsBase):
                  'publish_date', 'effective_date', 'expiry_date',
                  'notification_number',
                  'status',
-                 'area_type', 'geospatial_footprint', IMAGE_COL,
+                 'area_type', GEOSPATIAL_COL, IMAGE_COL,
                  TWEET_COL, TOOT_COL,
                  )
                 if c in source_data.columns
@@ -850,7 +850,7 @@ class ServiceAlertAugmenter(ServiceAlertBase.ServiceAlertsBase):
                 "geospatial_footprint.notna()"
             ).apply(
                 lambda row: _generate_image_link(row['area_type'], row['area'], row['location'],
-                                                 row['geospatial_footprint']),
+                                                 row[GEOSPATIAL_COL]),
                 axis=1
             )
 
@@ -956,11 +956,6 @@ class ServiceAlertAugmenter(ServiceAlertBase.ServiceAlertsBase):
                                            ]
                     logging.debug(f"location_suggestions:\n{pprint.pformat(location_suggestions)}", )
 
-                # geocode away!
-                location_polygons = set((
-                    _geocode_location(address, bounding_polygon)
-                    for address, bounding_polygon in location_suggestions
-                )) - {None}
                     # geocode away!
                     location_polygons = set((
                         _geocode_location(address, bounding_polygon)
