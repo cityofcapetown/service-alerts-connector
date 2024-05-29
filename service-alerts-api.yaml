@@ -83,7 +83,7 @@ paths:
                 type: array
                 items:
                   $ref: '#/components/schemas/ServiceAlertV1'
-  /v1/alerts/{alertId}.json:
+  /alerts/{alertId}.json:
     get:
       tags:
         - "v1"
