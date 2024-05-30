@@ -40,7 +40,7 @@ FALLBACK_ENDPOINT = "https://api.openai.com/v1/chat/completions"
 FALLBACK_DRAFTING_MODEL = "gpt-3.5-turbo-16k"
 DRAFT_LIMIT = 10
 PROMPT_LENGTH_LIMIT = 4096
-DRAFT_TIMEOUT = 300
+DRAFT_TIMEOUT = 120
 
 SERVICE_AREA_HASHTAGS = {
     "Water & Sanitation": "#WaterAndSanitation",
