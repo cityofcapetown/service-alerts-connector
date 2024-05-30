@@ -913,14 +913,14 @@ class ServiceAlertAugmenter(ServiceAlertBase.ServiceAlertsBase):
             self.data[data_col_name] = area_lookup
 
     def lookup_location_geospatial_footprint(self):
-        if "area_type" not in self.data.columns:
+        if "area_type" not in self.data.columns or self.data["area_type"].isna().all():
             logging.warning("Area type not present in data, skipping geospatial lookups")
             return
         elif self.data.empty:
             logging.warning("Nothing to do here, skipping...")
             return
 
-        source_data = self.data[["area_type", "area", "location"]].copy()
+        source_data = self.data[["area_type", "area", "location"]].dropna(subset=["area_type"]).copy()
         source_index = source_data.index.values
 
         # loading up the layers we're going to use
