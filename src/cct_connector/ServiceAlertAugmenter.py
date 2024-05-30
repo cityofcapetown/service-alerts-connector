@@ -13,7 +13,7 @@ import time
 import typing
 
 import geopandas
-from db_utils import minio_utils, proxy_utils
+from db_utils import minio_utils, proxy_utils, secrets_utils
 from geopy.geocoders import Nominatim
 from geospatial_utils import mportal_utils
 import pandas
@@ -34,10 +34,10 @@ from cct_connector import (
 )
 
 # Internal LLM consts
-CPTGPT_GPU_ENDPOINT = "https://datascience.capetown.gov.za/cptgpt-dev/v1/chat/completions"
-GPU_DRAFTING_MODEL = "llama3-8b-it-q5"
-CPTGPT_FALLBACK_ENDPOINT = "https://datascience.capetown.gov.za/cptgpt/v1/chat/completions"
-FALLBACK_DRAFTING_MODEL = "wizardlm-13b-q5-gguf"
+CPTGPT_ENDPOINT = "https://datascience.capetown.gov.za/cptgpt-dev/v1/chat/completions"
+CPTGPT_DRAFTING_MODEL = "llama3-8b-it-q5"
+FALLBACK_ENDPOINT = "https://api.openai.com/v1/chat/completions"
+FALLBACK_DRAFTING_MODEL = "gpt-3.5-turbo-16k"
 DRAFT_LIMIT = 10
 PROMPT_LENGTH_LIMIT = 4096
 DRAFT_TIMEOUT = 300
@@ -152,10 +152,10 @@ def _geocode_location(address: str,
 
 
 def _cptgpt_location_call_wrapper(location_dict: typing.Dict, http_session: requests.Session) -> typing.List or None:
-    endpoint = CPTGPT_GPU_ENDPOINT
+    endpoint = CPTGPT_ENDPOINT
     # ToDo move messages to standalone config file
     params = {
-        "model": GPU_DRAFTING_MODEL,
+        "model": CPTGPT_DRAFTING_MODEL,
         "messages": [
             {
                 "role": "system",
@@ -360,6 +360,7 @@ def _cptgpt_location_call_wrapper(location_dict: typing.Dict, http_session: requ
         ],
         "temperature": 0.2,
     }
+    headers = {}
 
     # Wrapping call in retry loop
     last_error = None
@@ -368,7 +369,7 @@ def _cptgpt_location_call_wrapper(location_dict: typing.Dict, http_session: requ
         try:
             logging.debug(f"{params=}")
 
-            response = http_session.post(endpoint, json=params, timeout=DRAFT_TIMEOUT)
+            response = http_session.post(endpoint, json=params, timeout=DRAFT_TIMEOUT, headers=headers)
             response_data = response.json()
             logging.debug(f"{response_data=}")
 
@@ -424,6 +425,22 @@ def _cptgpt_location_call_wrapper(location_dict: typing.Dict, http_session: requ
             logging.debug(f"sleeping for {delay}s...")
             time.sleep(delay)
 
+        except Exception as e:
+            logging.debug(f"Got {e.__class__.__name__}: '{e}'")
+            last_error = e
+            delay = t * 10
+            logging.debug(f"sleeping for {delay}...")
+
+            if endpoint == CPTGPT_ENDPOINT:
+                logging.debug("Falling back to alternative model...")
+                endpoint = FALLBACK_ENDPOINT
+                params["model"] = FALLBACK_DRAFTING_MODEL
+
+                secrets = secrets_utils.get_secrets()
+                headers['Authorization'] = f"Bearer {secrets['openai_api_key']}"
+
+            time.sleep(delay)
+
     else:
         if isinstance(last_error, requests.exceptions.ReadTimeout) or isinstance(last_error, KeyError):
             logging.error("CPTGPT timing out or malformed response - bailing!")
@@ -448,9 +465,9 @@ def _cptgpt_summarise_call_wrapper(message_dict: typing.Dict, http_session: requ
         'Only return the content of the post for the very last JSON given.'
     )
 
-    endpoint = CPTGPT_GPU_ENDPOINT
+    endpoint = CPTGPT_ENDPOINT
     params = {
-        "model": GPU_DRAFTING_MODEL,
+        "model": CPTGPT_DRAFTING_MODEL,
         "messages": [
             {"role": "system", "content": system_prompt},
             {
@@ -509,6 +526,7 @@ def _cptgpt_summarise_call_wrapper(message_dict: typing.Dict, http_session: requ
         "temperature": 0.2,
         "frequency_penalty": 1,
     }
+    headers = {}
 
     for i, entry in enumerate(params["messages"]):
         message = entry['content']
@@ -549,7 +567,7 @@ def _cptgpt_summarise_call_wrapper(message_dict: typing.Dict, http_session: requ
 
             logging.debug(f"{params=}")
 
-            response = http_session.post(endpoint, json=params, timeout=DRAFT_TIMEOUT)
+            response = http_session.post(endpoint, json=params, timeout=DRAFT_TIMEOUT, headers=headers)
             response_data = response.json()
             logging.debug(f"{response_data=}")
 
@@ -606,10 +624,13 @@ def _cptgpt_summarise_call_wrapper(message_dict: typing.Dict, http_session: requ
             delay = t * 10
             logging.debug(f"sleeping for {delay}...")
 
-            if endpoint == CPTGPT_GPU_ENDPOINT:
-                logging.debug("Falling back to CPU model...")
-                endpoint = CPTGPT_FALLBACK_ENDPOINT
+            if endpoint == CPTGPT_ENDPOINT:
+                logging.debug("Falling back to alternative model...")
+                endpoint = FALLBACK_ENDPOINT
                 params["model"] = FALLBACK_DRAFTING_MODEL
+
+                secrets = secrets_utils.get_secrets()
+                headers['Authorization'] = f"Bearer {secrets['openai_api_key']}"
 
             time.sleep(delay)
 
