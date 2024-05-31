@@ -635,7 +635,11 @@ def _cptgpt_summarise_call_wrapper(message_dict: typing.Dict, http_session: requ
             time.sleep(delay)
 
     else:
-        if isinstance(last_error, requests.exceptions.ReadTimeout) or isinstance(last_error, KeyError):
+        if (
+                isinstance(last_error, requests.exceptions.ReadTimeout) or
+                isinstance(last_error, KeyError) or
+                isinstance(last_error, requests.exceptions.ConnectionError)
+        ):
             logging.error("CPTGPT timing out or malformed response - bailing!")
             sys.exit(-1)
 
