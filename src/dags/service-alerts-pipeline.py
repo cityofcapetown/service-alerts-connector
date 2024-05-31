@@ -3,9 +3,10 @@ from pipeline_utils import kubernetes_dag
 from datetime import datetime, timedelta
 
 DAG_STARTDATE = datetime(2024, 3, 5)
-DAG_IMAGE = "cityofcapetown/datascience:python@sha256:269abfbfd016f8b082c39bbe4e7d6a0850172ef88e7ddadb84ce4239329001e6"
+DAG_IMAGE = "cityofcapetown/datascience:python@sha256:56df3e83792fe8c97e0cc1676679d8f2ce8d08df475b0d169ac3869349ee93d7"
 DAG_OWNER = kubernetes_dag.DagOwner('ginggs', 'gordon.inggs@capetown.gov.za')
 
+kubernetes_dag.DB_UTILS_LOCATION = 'https://lake.capetown.gov.za/db-utils/db_utils-0.4.5rc2-py2.py3-none-any.whl'
 with kubernetes_dag.airflowK8sDAG("service-alerts-pipeline",
                                   DAG_OWNER, secret_name='service-alerts-connector-secret',
                                   dag_image=DAG_IMAGE,
