@@ -834,7 +834,7 @@ class ServiceAlertAugmenter(ServiceAlertBase.ServiceAlertsBase):
 
         json_dicts = source_data.to_dict(orient='records')
 
-        with requests.Session() as session:
+        with proxy_utils.setup_http_session() as session:
             for record_index, record in zip(source_index, tqdm(json_dicts)):
                 logging.debug(f"Processing: {record_index} - {record}")
 
