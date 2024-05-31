@@ -29,14 +29,18 @@ tr {padding-bottom: 1em}
                 {% endif %}
             </h2>
 
-            <p> Below is a summary of a potential outage or service alert logged on CRM's Body of Knowledge, formatted
-                for easy sharing. You are receiving this email because of your interest in {{ email_focus }}. </p>
-            <p>Please inspect the summary, and if you think it accurately captures the important information contained
-                in the alert, please share it publicly and widely. </p>
+            <p>This email contains information a potential outage or service alert logged on CRM's Body of Knowledge.
+                You are receiving this email because of your interest in {{ email_focus }}.</p>
+            {% if post_text %}
+            <p>Below is a summary of the issue, formatted for easy sharing. Please inspect the summary, and if you
+                think it accurately captures the important information contained in the alert, please share it publicly
+                and widely. </p>
+            {% endif %}
             <p>A web version of this email may be found <a href="{{ email_link }}">here</a> (<strong>NB</strong> Only
                 accessible within the City of Cape Town's network).</p>
         </td>
     </tr>
+    {% if post_text %}
     <tr>
         <td>
             <h2>Suggested Post</h2>
@@ -49,6 +53,7 @@ tr {padding-bottom: 1em}
             <p style="font-size: 18px; font-weight: bold;">{{ post_text|replace("\n","<br>") }}</p>
         </td>
     </tr>
+    {% endif %}
     {% if image_path %}
     <tr>
         <td>

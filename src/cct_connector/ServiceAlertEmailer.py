@@ -355,8 +355,7 @@ class ServiceAlertEmailer(ServiceAlertBroadcaster):
                     email_filename = f"{config_hash}_{alert_dict[ID_COL]}.html"
 
                     if alert_dict[TWEET_COL] is None:
-                        logging.warning(f"Skipping empty post - {alert_dict[ID_COL]}")
-                        continue
+                        logging.warning(f"Empty post - {alert_dict[ID_COL]}")
 
                     logging.debug("Checking if email has already been sent...")
                     skip_flag = False
