@@ -34,12 +34,12 @@ from cct_connector import (
 )
 
 # Internal LLM consts
-CPTGPT_ENDPOINT = "https://datascience.capetown.gov.za/cptgpt-dev/v1/chat/completions"
-CPTGPT_DRAFTING_MODEL = "llama3-8b-it-q5"
-FALLBACK_ENDPOINT = "https://api.openai.com/v1/chat/completions"
-FALLBACK_DRAFTING_MODEL = "gpt-3.5-turbo-16k"
+PRIMARY_GPT_ENDPOINT = "https://api.openai.com/v1/chat/completions"
+PRIMARY_DRAFTING_MODEL = "gpt-3.5-turbo-16k"
+FALLBACK_ENDPOINT = "https://datascience.capetown.gov.za/cptgpt-dev/v1/chat/completions"
+FALLBACK_DRAFTING_MODEL = "llama3-8b-it-q5"
 DRAFT_LIMIT = 10
-PROMPT_LENGTH_LIMIT = 4096
+PROMPT_LENGTH_LIMIT = 8192
 DRAFT_TIMEOUT = 120
 
 SERVICE_AREA_HASHTAGS = {
@@ -152,10 +152,10 @@ def _geocode_location(address: str,
 
 
 def _cptgpt_location_call_wrapper(location_dict: typing.Dict, http_session: requests.Session) -> typing.List or None:
-    endpoint = CPTGPT_ENDPOINT
+    endpoint = PRIMARY_GPT_ENDPOINT
     # ToDo move messages to standalone config file
     params = {
-        "model": CPTGPT_DRAFTING_MODEL,
+        "model": PRIMARY_DRAFTING_MODEL,
         "messages": [
             {
                 "role": "system",
@@ -369,6 +369,12 @@ def _cptgpt_location_call_wrapper(location_dict: typing.Dict, http_session: requ
         try:
             logging.debug(f"{params=}")
 
+            if "openai" in endpoint:
+                secrets = secrets_utils.get_secrets()
+                headers['Authorization'] = f"Bearer {secrets['openai_api_key']}"
+            else:
+                del headers['Authorization']
+
             response = http_session.post(endpoint, json=params, timeout=DRAFT_TIMEOUT, headers=headers)
             response_data = response.json()
             logging.debug(f"{response_data=}")
@@ -431,13 +437,10 @@ def _cptgpt_location_call_wrapper(location_dict: typing.Dict, http_session: requ
             delay = t * 10
             logging.debug(f"sleeping for {delay}...")
 
-            if endpoint == CPTGPT_ENDPOINT:
+            if endpoint == PRIMARY_GPT_ENDPOINT:
                 logging.debug("Falling back to alternative model...")
                 endpoint = FALLBACK_ENDPOINT
                 params["model"] = FALLBACK_DRAFTING_MODEL
-
-                secrets = secrets_utils.get_secrets()
-                headers['Authorization'] = f"Bearer {secrets['openai_api_key']}"
 
             time.sleep(delay)
 
@@ -465,9 +468,9 @@ def _cptgpt_summarise_call_wrapper(message_dict: typing.Dict, http_session: requ
         'Only return the content of the post for the very last JSON given.'
     )
 
-    endpoint = CPTGPT_ENDPOINT
+    endpoint = PRIMARY_GPT_ENDPOINT
     params = {
-        "model": CPTGPT_DRAFTING_MODEL,
+        "model": PRIMARY_DRAFTING_MODEL,
         "messages": [
             {"role": "system", "content": system_prompt},
             {
@@ -567,6 +570,12 @@ def _cptgpt_summarise_call_wrapper(message_dict: typing.Dict, http_session: requ
 
             logging.debug(f"{params=}")
 
+            if "openai" in endpoint:
+                secrets = secrets_utils.get_secrets()
+                headers['Authorization'] = f"Bearer {secrets['openai_api_key']}"
+            else:
+                del headers['Authorization']
+
             response = http_session.post(endpoint, json=params, timeout=DRAFT_TIMEOUT, headers=headers)
             response_data = response.json()
             logging.debug(f"{response_data=}")
@@ -624,13 +633,10 @@ def _cptgpt_summarise_call_wrapper(message_dict: typing.Dict, http_session: requ
             delay = t * 10
             logging.debug(f"sleeping for {delay}...")
 
-            if endpoint == CPTGPT_ENDPOINT:
+            if endpoint == PRIMARY_GPT_ENDPOINT:
                 logging.debug("Falling back to alternative model...")
                 endpoint = FALLBACK_ENDPOINT
                 params["model"] = FALLBACK_DRAFTING_MODEL
-
-                secrets = secrets_utils.get_secrets()
-                headers['Authorization'] = f"Bearer {secrets['openai_api_key']}"
 
             time.sleep(delay)
 
