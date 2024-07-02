@@ -111,11 +111,13 @@ def _get_overture_street_data() -> geopandas.GeoDataFrame:
                                   minio_filename_override="streets-lookup/cct_combined_roads.geojson")
         return geopandas.read_file(temp_data_file.name)
 
+
 def _geocode_location(address: str,
                       bounding_polygon: shapely.geometry.base) -> shapely.geometry.base or None:
     output_shape = None
+    logging.debug(f"Attempting to geocode '{address=}'")
 
-    # Doing lookups against
+    # Doing lookups against static data
     if ',' not in address:
         # NB do the query after the function call, otherwise it triggers a fetch of the layer
         address_lower = address.lower()
@@ -147,7 +149,7 @@ def _geocode_location(address: str,
             logging.debug(f"streets_lookup_gdf.sample(5)=\n{streets_lookup_gdf.sample(min([5,streets_lookup_gdf.shape[0]]))}")
             output_shape = streets_lookup_gdf.iloc[-1]["geometry"].buffer(LOCATION_BUFFER)
 
-
+    # Next, try Nominatim geocoder
     if output_shape is None:
         address_string = f"{address}, Cape Town"
         geocoded_location = _cached_geocoder_wrapper(address_string)
