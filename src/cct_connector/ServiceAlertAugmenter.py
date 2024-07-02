@@ -1002,6 +1002,8 @@ class ServiceAlertAugmenter(ServiceAlertBase.ServiceAlertsBase):
                 if llm_locations is None or len(llm_locations) == 0:
                     logging.warning(f"Empty response from LLM for {record}, falling back to area polygon")
                     record_polygon = area_polygon
+                elif area_polygon is None:
+                    logging.warning(f"Can't look up a polygon for this area: {source_index}")
                 else:
                     # Getting relevant geometries for this record
                     intersecting_wards = ward_polygons.loc[
