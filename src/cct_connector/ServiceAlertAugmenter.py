@@ -16,6 +16,7 @@ import geopandas
 from db_utils import minio_utils, proxy_utils, secrets_utils
 from geopy.geocoders import Nominatim
 from geospatial_utils import mportal_utils
+import Levenshtein
 import pandas
 import requests
 from selenium.webdriver import FirefoxOptions
@@ -102,10 +103,19 @@ def _cached_geocoder_wrapper(address: str, geometry: str = 'wkt') -> typing.Dict
         return geocoder.geocode(address, geometry=geometry, timeout=GEOCODER_TIMEOUT)
 
 
+@functools.lru_cache
+def _get_overture_street_data() -> geopandas.GeoDataFrame:
+    with tempfile.NamedTemporaryFile(suffix=".geojson") as temp_data_file:
+        minio_utils.minio_to_file(temp_data_file.name,
+                                  AREA_IMAGE_BUCKET,
+                                  minio_filename_override="streets-lookup/cct_combined_roads.geojson")
+        return geopandas.read_file(temp_data_file.name)
+
 def _geocode_location(address: str,
                       bounding_polygon: shapely.geometry.base) -> shapely.geometry.base or None:
     output_shape = None
 
+    # Doing lookups against
     if ',' not in address:
         # NB do the query after the function call, otherwise it triggers a fetch of the layer
         address_lower = address.lower()
@@ -115,6 +125,28 @@ def _geocode_location(address: str,
         if suburb.shape[0] == 1:
             logging.debug(f"Found {address} in suburbs layer")
             output_shape = suburb.iloc[0]["WKT"]
+    else:
+        # Doing lookup against Overture-derived street map data
+        street_name, *_ = address.split(',')
+        streets_lookup_gdf = _get_overture_street_data().assign(
+            score=lambda gdf: gdf["street_name"].apply(
+                lambda street_lookup_name: Levenshtein.distance(street_name, street_lookup_name)
+            )
+        ).pipe(
+            # selecting those within a reasonable distance
+            lambda gdf: gdf.loc[gdf["score"] <= 5]
+        ).pipe(
+            # selecting those that fall within the bounding polygon
+            lambda gdf: gdf.loc[
+                gdf["geometry"].intersects(bounding_polygon)
+            ]
+        ).sort_values(by="score", ascending=False)
+        logging.debug(f"{streets_lookup_gdf.shape=}")
+        if not streets_lookup_gdf.empty:
+            logging.debug(f"Found {address} in streets lookup!")
+            logging.debug(f"streets_lookup_gdf.sample(5)=\n{streets_lookup_gdf.sample(min([5,streets_lookup_gdf.shape[0]]))}")
+            output_shape = streets_lookup_gdf.iloc[-1]["geometry"].buffer(LOCATION_BUFFER)
+
 
     if output_shape is None:
         address_string = f"{address}, Cape Town"
@@ -411,7 +443,7 @@ def _cptgpt_location_call_wrapper(location_dict: typing.Dict, http_session: requ
             logging.debug(f"Got {e.__class__.__name__}: '{e}'")
             last_error = e
 
-            if t == 0:
+            if t == 0 and len(response_text) > 0:
                 params["messages"] += [
                     {
                         "role": "assistant",
@@ -892,6 +924,9 @@ class ServiceAlertAugmenter(ServiceAlertBase.ServiceAlertsBase):
         if self.data.empty:
             logging.warning("No data, so skipping...")
             return
+        elif "geospatial_footprint" not in self.data.columns:
+            logging.warning("No geospatial data, so skipping...")
+            return
 
         layer_gdf = _load_gis_layer(layer_name, layer_query)[[layer_col, "WKT"]].assign(
             layer_area=lambda gdf: gdf.geometry.area
@@ -925,6 +960,9 @@ class ServiceAlertAugmenter(ServiceAlertBase.ServiceAlertsBase):
     def lookup_location_geospatial_footprint(self):
         if "area_type" not in self.data.columns or self.data["area_type"].isna().all():
             logging.warning("Area type not present in data, skipping geospatial lookups")
+            return
+        elif "area_type" in self.data.columns and self.data["area_type"].isin(AREA_TYPE_EXCLUSION_SET).all():
+            logging.warning("Area type is present in data, but all of exclusion types, skipping geospatial lookups")
             return
         elif self.data.empty:
             logging.warning("Nothing to do here, skipping...")
