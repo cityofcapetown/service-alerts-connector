@@ -127,8 +127,8 @@ def _geocode_location(address: str,
         if suburb.shape[0] == 1:
             logging.debug(f"Found {address} in suburbs layer")
             output_shape = suburb.iloc[0]["WKT"]
-    else:
-        # Doing lookup against Overture-derived street map data
+    elif 'ward' not in address.lower():
+        # Doing lookup against Overture-derived street map data, but only for suburb-like addresses
         street_name, *_ = address.split(',')
         streets_lookup_gdf = _get_overture_street_data().assign(
             score=lambda gdf: gdf["street_name"].apply(
@@ -1008,30 +1008,25 @@ class ServiceAlertAugmenter(ServiceAlertBase.ServiceAlertsBase):
                         ward_polygons.intersects(area_polygon)
                     ] if pandas.notna(area_polygon) else pandas.Series([])
 
-                    # Assemble list of location suggestions
-                    location_suggestions = [
-                                               # for each location, give the bounding polygon, as defined by the area type and area
-                                               (llm_location, area_polygon)
-                                               for llm_location_suggestion_list in llm_locations
-                                               for llm_location in llm_location_suggestion_list
-                                           ] + [
-                                               # for each location that looks like a street address,
-                                               # also generate an entry per relevant ward, per address
-                                               (llm_location.split(',')[0] + f", Ward {ward}",
-                                                area_polygon)
-                                               for llm_location_suggestion_list in llm_locations
-                                               for llm_location in llm_location_suggestion_list
-                                               for ward in intersecting_wards.index
-                                               # this is some sort of compound address
-                                               if ',' in llm_location
-                                           ]
-                    logging.debug(f"location_suggestions:\n{pprint.pformat(location_suggestions)}", )
+                    def _location_generator():
+                        for llm_location_suggestion_list in llm_locations:
+                            for llm_location in llm_location_suggestion_list:
+                                # first, try with the GPT location list
+                                location_shape = _geocode_location(llm_location, area_polygon)
 
-                    # geocode away!
-                    location_polygons = set((
-                        _geocode_location(address, bounding_polygon)
-                        for address, bounding_polygon in location_suggestions
-                    )) - {None}
+                                if location_shape is not None:
+                                    yield location_shape
+                                    break
+
+                                # next, try with the intersecting wards
+                                for ward in intersecting_wards.index:
+                                    location_shape = _geocode_location(llm_location.split(',')[0] + f", Ward {ward}",
+                                                                       area_polygon)
+                                    if location_shape is not None:
+                                        yield location_shape
+
+                    # Assemble list of location suggestions
+                    location_polygons = set(_location_generator())
 
                     # combining results
                     if len(location_polygons) > 0:
