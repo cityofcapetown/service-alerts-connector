@@ -148,7 +148,14 @@ def _geocode_location(address: str,
         if not streets_lookup_gdf.empty:
             logging.debug(f"Found {address} in streets lookup!")
             logging.debug(f"streets_lookup_gdf.sample(5)=\n{streets_lookup_gdf.sample(min([5,streets_lookup_gdf.shape[0]]))}")
-            output_shape = streets_lookup_gdf.iloc[-1]["geometry"].buffer(LOCATION_BUFFER)
+
+            # handling the case where there are multiple streets in the area with the same name
+            # (usually segments that have gotten split up)
+            output_street = streets_lookup_gdf['street_name'].iloc[-1]
+            output_shapes = streets_lookup_gdf.query("street_name == @output_street")['geometry']
+            logging.debug(f"Combing {len(output_shapes)} street segments with the same name")
+
+            output_shape = shapely.unary_union(list(output_shapes)).buffer(LOCATION_BUFFER)
 
     # Next, try Nominatim geocoder
     if output_shape is None:
