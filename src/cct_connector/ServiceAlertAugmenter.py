@@ -65,6 +65,7 @@ AREA_INFERENCE_THRESHOLD = 0.05
 GEOCODER_DELAY = 2
 GEOCODER_TIMEOUT = 5
 LOCATION_BUFFER = 0.0001  # In degrees decimal. At Cape Town's Lat-Long, this is about 10m
+AREA_BUFFER = 0.01  # In degrees decimal. At Cape Town's Lat-Long, this is about 10m
 
 AREA_WEBDRIVER_PATH = "/usr/bin/geckodriver"
 AREA_IMAGE_SALT = "2024-03-20T22:59"
@@ -176,6 +177,8 @@ def _geocode_location(address: str,
     # finally, checking the location intersects with our bounding polygon
     if shapely.intersects(output_shape, bounding_polygon):
         logging.debug(f"{output_shape=}")
+        # clipping output shape to fall within bounding area specified
+        output_shape = shapely.intersection(output_shape, bounding_polygon.buffer(AREA_BUFFER))
     elif output_shape is not None:
         logging.warning(
             "Geocoded location does **not** intersect with bounding polygon, rejecting this location"
