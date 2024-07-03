@@ -747,7 +747,8 @@ def _get_selenium_driver() -> webdriver.Firefox:
 
 
 def _generate_screenshot_of_area(area_gdf: geopandas.GeoDataFrame, area_filename: str) -> bool:
-    m = area_gdf.explore(max_zoom=AREA_IMAGE_ZOOM, zoom_control=False)
+    m = area_gdf.explore(max_zoom=AREA_IMAGE_ZOOM, zoom_control=False,
+                         attr="©OpenStreetMap Contributors; ©Overture Maps Foundation")
 
     logging.debug("Setting up temp dir and webdriver")
     with tempfile.TemporaryDirectory() as temp_dir, _get_selenium_driver() as driver:
