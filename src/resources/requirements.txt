@@ -1,0 +1,9 @@
+geopandas
+geopy
+python-Levenshtein
+pandas
+requests
+selenium
+selenium-wire
+shapely
+tqdm
