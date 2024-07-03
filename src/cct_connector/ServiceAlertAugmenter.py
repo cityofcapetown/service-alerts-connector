@@ -399,6 +399,14 @@ def _cptgpt_location_call_wrapper(location_dict: typing.Dict, http_session: requ
             },
             {
                 "role": "user",
+                "content": "{\"location\": \"AREA EAST COLLECTIONS:\n Mfuleni\n Kuilsriver Trade\n Gaylee\n Greenfields\n Sonkring\n Steynrust\"}"
+            },
+            {
+                "role": "assistant",
+                "content": "[[\"Mfuleni\"], [\"Kuilsrivier Industria\", \"Kuilsrivier\",\"Kuils River\"], [\"Gaylee\"], [\"Greenfields\"],[\"Sonkring\"], [\"Steynrust\"]]"
+            },
+            {
+                "role": "user",
                 "content": json.dumps(location_dict)
             }
         ],
