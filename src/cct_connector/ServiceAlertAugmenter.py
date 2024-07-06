@@ -806,7 +806,10 @@ def _generate_image_link(area_type: str, area: str, location: str or None, wkt_s
 def _lookup_area_geospatial_footprint(area_df: pandas.DataFrame) -> pandas.Series:
     logging.debug("Forming geospatial value lookup")
     area_type_spatial_lookup = {
-        val: _load_gis_layer(val).set_index(AREA_LOOKUP[val][1])["WKT"].to_dict()
+        val: _load_gis_layer(val).assign(**{
+            # turns out some of the GIS datasets have trailing spaces
+            AREA_LOOKUP[val][1]: lambda df: df[AREA_LOOKUP[val][1]].str.strip()
+        }).set_index(AREA_LOOKUP[val][1])["WKT"].to_dict()
         for val in area_df["area_type"].unique()
         if val is not None and val not in AREA_TYPE_EXCLUSION_SET
     }
@@ -1005,6 +1008,10 @@ class ServiceAlertAugmenter(ServiceAlertBase.ServiceAlertsBase):
         json_dicts = source_data.to_dict(orient='records')
         with proxy_utils.setup_http_session() as session:
             for record_index, record in zip(source_index, tqdm(json_dicts)):
+                if record["area_type"] in AREA_TYPE_EXCLUSION_SET:
+                    logging.warning(f"Skipping {record_index} from geocoding because it is of an excluded area type!")
+                    continue
+
                 # todo implement cache lookup and skip, if possible
                 # Getting list of locations via LLM
                 llm_record = {
