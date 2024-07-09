@@ -323,7 +323,8 @@ def _form_and_send_alerts_email(alert_dict: typing.Dict[str, typing.Any],
         # Attaching area image
         if image_link_str:
             with tempfile.NamedTemporaryFile("wb") as image_temp_file:
-                image_temp_file.write(http_session.get(image_link_str).content)
+                image_temp_file.write(http_session.get(image_link_str,
+                                                       proxies={'http': None, 'https': None}).content)
                 image_temp_file.flush()
 
                 message.attach(_get_image_attachment(pathlib.Path(image_temp_file.name).absolute(),
