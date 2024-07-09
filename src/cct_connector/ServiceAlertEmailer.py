@@ -340,7 +340,7 @@ class ServiceAlertEmailer(ServiceAlertBroadcaster):
         super().__init__(minio_write_name=minio_write_name)
 
     def send_alert_emails(self):
-        with requests.Session() as http:
+        with proxy_utils.setup_http_session() as http:
             for config, (_, alert_df) in zip(SA_EMAIL_CONFIGS,
                                              self._service_alerts_generator(SA_EMAIL_CONFIGS)):
                 config_hash = hashlib.sha256(str.encode(str(config.receivers) +
