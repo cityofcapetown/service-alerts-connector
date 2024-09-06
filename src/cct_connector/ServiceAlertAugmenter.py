@@ -36,7 +36,7 @@ from cct_connector import (
 
 # Internal LLM consts
 PRIMARY_GPT_ENDPOINT = "https://api.openai.com/v1/chat/completions"
-PRIMARY_DRAFTING_MODEL = "gpt-3.5-turbo-16k"
+PRIMARY_DRAFTING_MODEL = "gpt-4o-mini-2024-07-18"
 FALLBACK_ENDPOINT = "https://datascience.capetown.gov.za/cptgpt-dev/v1/chat/completions"
 FALLBACK_DRAFTING_MODEL = "llama3-8b-it-q5"
 DRAFT_LIMIT = 10
@@ -836,10 +836,10 @@ class ServiceAlertAugmenter(ServiceAlertBase.ServiceAlertsBase):
     def __init__(self, minio_read_name=FIXED_SA_NAME, minio_write_name=AUGMENTED_SA_NAME):
         super().__init__(None, None, minio_utils.DataClassification.LAKE,
                          minio_read_name=minio_read_name, minio_write_name=minio_write_name,
-                         use_cached_values=True, stage_cache_salt=AUGMENTER_SALT, index_col=ID_COL)
+                         use_cached_values=False, stage_cache_salt=AUGMENTER_SALT, index_col=ID_COL)
 
         # all data is reverse sorted
-        self.data = self.get_data_from_minio().sort_values(by=['publish_date'], ascending=False)
+        self.data = self.get_data_from_minio().sort_values(by=['publish_date'], ascending=False).head(10)
 
         # if there aren't new values, take some undrafted ones from the cache
         less_than_limit = DRAFT_LIMIT - self.data.shape[0]
@@ -1106,5 +1106,5 @@ if __name__ == "__main__":
     logging.info("...Look[ed] up Image Filenames")
 
     logging.info("Wr[iting] to Minio...")
-    sa_augmenter.write_data_to_minio(sa_augmenter.data)
+    # sa_augmenter.write_data_to_minio(sa_augmenter.data)
     logging.info("...Wr[ote] to Minio")
