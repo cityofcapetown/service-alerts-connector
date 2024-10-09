@@ -78,7 +78,7 @@ AREA_IMAGE_ZOOM = 16
 
 
 @functools.lru_cache
-def _load_gis_layer(area_type: str, layer_query: str or None = None):
+def _load_gis_layer(area_type: str, layer_query: str | None = None):
     if area_type in AREA_LOOKUP:
         layer_name, _ = AREA_LOOKUP[area_type]
     else:
@@ -114,7 +114,7 @@ def _get_overture_street_data() -> geopandas.GeoDataFrame:
 
 
 def _geocode_location(address: str,
-                      bounding_polygon: shapely.geometry.base) -> shapely.geometry.base or None:
+                      bounding_polygon: shapely.geometry.base) -> shapely.geometry.base | None:
     output_shape = None
     logging.debug(f"Attempting to geocode '{address=}'")
 
@@ -195,7 +195,7 @@ def _geocode_location(address: str,
     return output_shape
 
 
-def _cptgpt_location_call_wrapper(location_dict: typing.Dict, http_session: requests.Session) -> typing.List or None:
+def _cptgpt_location_call_wrapper(location_dict: typing.Dict, http_session: requests.Session) -> typing.List | None:
     endpoint = PRIMARY_GPT_ENDPOINT
     # ToDo move messages to standalone config file
     params = {
@@ -507,7 +507,7 @@ def _cptgpt_location_call_wrapper(location_dict: typing.Dict, http_session: requ
 
 
 def _cptgpt_summarise_call_wrapper(message_dict: typing.Dict, http_session: requests.Session,
-                                   max_post_length: int) -> str or None:
+                                   max_post_length: int) -> str | None:
     system_prompt = (
         f'Please reason step by step to draft {max_post_length} or less character social media posts about potential '
         'City of Cape Town service outage or update, using the details in provided JSON objects. '
@@ -772,7 +772,7 @@ def _generate_screenshot_of_area(area_gdf: geopandas.GeoDataFrame, area_filename
         return minio_utils.file_to_minio(local_image_path, AREA_IMAGE_BUCKET)
 
 
-def _generate_image_link(area_type: str, area: str, location: str or None, wkt_str: str) -> str:
+def _generate_image_link(area_type: str, area: str, location: str | None, wkt_str: str) -> str:
     template_params = dict(
         salt_str=base64.b64encode(bytes(AREA_IMAGE_SALT, 'utf-8')).decode(),
         area_type_str=base64.b64encode(bytes(area_type, 'utf-8')).decode(),
@@ -944,7 +944,7 @@ class ServiceAlertAugmenter(ServiceAlertBase.ServiceAlertsBase):
             if not image_filename_lookup.empty:
                 self.data[IMAGE_COL] = image_filename_lookup
 
-    def infer_area(self, layer_name: str, layer_col: str, data_col_name: str, layer_query: str or None = None):
+    def infer_area(self, layer_name: str, layer_col: str, data_col_name: str, layer_query: str | None = None):
         if self.data.empty:
             logging.warning("No data, so skipping...")
             return
