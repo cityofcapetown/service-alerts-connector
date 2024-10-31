@@ -87,12 +87,22 @@ def _service_area_curry_pot(service_area: str) -> typing.Callable[[pandas.Series
 
 SA_EMAIL_CONFIGS = [
     # All Alerts
+    # Social Media
     ServiceAlertEmailConfig("current", False, "v1", EMAIL_COLS,
                             (("Social Media Team", "social.media@capetown.gov.za"),),
                             "all unplanned alerts",
                             None),
     ServiceAlertEmailConfig("current", True, "v1", EMAIL_COLS,
                             (("Social Media Team", "social.media@capetown.gov.za"),),
+                            "all planned alerts",
+                            None),
+    # Digital Comms
+    ServiceAlertEmailConfig("current", False, "v1", EMAIL_COLS,
+                            (("Justin", "justin.lawrence@capetown.gov.za"),),
+                            "all unplanned alerts",
+                            None),
+    ServiceAlertEmailConfig("current", True, "v1", EMAIL_COLS,
+                            (("Justin", "justin.lawrence@capetown.gov.za"),),
                             "all planned alerts",
                             None),
     # Electricity-specific
