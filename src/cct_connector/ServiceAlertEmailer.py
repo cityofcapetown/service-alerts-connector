@@ -292,11 +292,11 @@ SA_EMAIL_CONFIGS = [
                             _ward_curry_pot("45")),
     # Ward 47
     ServiceAlertEmailConfig("current", False, "v1", EMAIL_COLS,
-                            (("Cllr Rheede", "Antonio.VanDerRheede@capetown.gov.za"),),
+                            (("Ald van der Rheede", "Antonio.VanDerRheede@capetown.gov.za"),),
                             "all unplanned alerts that might affect Ward 47",
                             _ward_curry_pot("47")),
     ServiceAlertEmailConfig("current", True, "v1", EMAIL_COLS,
-                            (("Cllr Rheede", "Antonio.VanDerRheede@capetown.gov.za"),),
+                            (("Ald van der Rheede", "Antonio.VanDerRheede@capetown.gov.za"),),
                             "all planned works that might affect Ward 47",
                             _ward_curry_pot("47")),
     # Ward 50
