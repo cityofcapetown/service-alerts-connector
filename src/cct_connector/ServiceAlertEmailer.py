@@ -595,11 +595,11 @@ SA_EMAIL_CONFIGS = [
 
     # Ward 110
     ServiceAlertEmailConfig("current", False, "v1", EMAIL_COLS,
-                            (("Cllr Rossouw", "shanen.rossouw@capetown.gov.za"),),
+                            (("Ald Rossouw", "shanen.rossouw@capetown.gov.za"),),
                             "all unplanned alerts that might affect Ward 110",
                             _ward_curry_pot("110")),
     ServiceAlertEmailConfig("current", True, "v1", EMAIL_COLS,
-                            (("Cllr Rossouw", "shanen.rossouw@capetown.gov.za"),),
+                            (("Ald Rossouw", "shanen.rossouw@capetown.gov.za"),),
                             "all planned works that might affect Ward 110",
                             _ward_curry_pot("110")),
     
