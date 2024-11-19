@@ -9,7 +9,8 @@
     "s3:GetObject"
    ],
    "Resource": [
-    "arn:aws:s3:::service-alerts.sanitised-service-alerts/*"
+    "arn:aws:s3:::service-alerts.sanitised-service-alerts/*",
+    "arn:aws:s3:::service-alerts.augmented-service-alerts/*"
    ]
   }
  ]
