@@ -166,11 +166,11 @@ SA_EMAIL_CONFIGS = [
                             _ward_curry_pot("21")),
     # Ward 31
     ServiceAlertEmailConfig("current", False, "v1", EMAIL_COLS,
-                            (("Cllr Thompson", "theresa.thompson@capetown.gov.za"),),
+                            (("Ald Thompson", "theresa.thompson@capetown.gov.za"),),
                             "all unplanned alerts that might affect Ward 31",
                             _ward_curry_pot("31")),
     ServiceAlertEmailConfig("current", True, "v1", EMAIL_COLS,
-                            (("Cllr Thompson", "theresa.thompson@capetown.gov.za"),),
+                            (("Ald Thompson", "theresa.thompson@capetown.gov.za"),),
                             "all planned works that might affect Ward 31",
                             _ward_curry_pot("31")),
     # Ward 33
