@@ -623,6 +623,18 @@ SA_EMAIL_CONFIGS = [
                             "all planned works that might affect Ward 116",
                             _ward_curry_pot("116")),
     
+    # Grassy Park
+    ServiceAlertEmailConfig("current", False, "v1", EMAIL_COLS,
+                            (("Rejane", "rejane.alexander@capetown.gov.za"),),
+                            "all unplanned alerts that affect Grassy Park",
+                            "(inferred_suburbs.astype('str').str.lower().str.contains('grassy\Wpark') or "
+                            " area.astype('str').str.lower().str.contains('grassy\Wpark'))"),
+    ServiceAlertEmailConfig("current", True, "v1", EMAIL_COLS,
+                            (("Rejane", "rejane.alexander@capetown.gov.za"),),
+                            "all planned works that affect Grassy Park",
+                            "(inferred_suburbs.astype('str').str.lower().str.contains('grassy\Wpark') or "
+                            " area.astype('str').str.lower().str.contains('grassy\Wpark'))"),
+    
     # Somerset West
     ServiceAlertEmailConfig("current", False, "v1", EMAIL_COLS,
                             (("Delyno", "delyno.dutoit@capetown.gov.za"),),
