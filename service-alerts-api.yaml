@@ -83,6 +83,26 @@ paths:
                 type: array
                 items:
                   $ref: '#/components/schemas/ServiceAlertV1.1'
+  /v1.2/service-alerts/{timeFrame}/{planned}:
+    get:
+      tags:
+        - "v1.1"
+      summary: list service alerts
+      description: Get all service alerts, according to the parameters set with additional status field.
+      parameters:
+        - $ref: '#/components/parameters/timeFrame'
+          name: timeFrame
+        - $ref: '#/components/parameters/planned'
+          name: planned
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ServiceAlertV1.2'
   /alerts/{alertId}.json:
     get:
       tags:
@@ -259,7 +279,9 @@ components:
                 - Official Planning Suburb
                 - Solid Waste Regional Service Area
                 - Citywide
-                - Driving Licence Testing Centre
+                - Driving License Testing Centre
+                - Electricity Service Region
+                - Water Service Region
             geospatial_footprint:
               type: string
               description: Best effort geospatial location of the issue, based upon the contents of the area_type, area and location fields. Provided in Well-Known Text (WKT), ISO/IEC 13249-3:2016 compliant format, using the EPSG 4326 CRS.
