@@ -82,7 +82,7 @@ paths:
               schema:
                 type: array
                 items:
-                  $ref: '#/components/schemas/ServiceAlertV1'
+                  $ref: '#/components/schemas/ServiceAlertV1.1'
   /alerts/{alertId}.json:
     get:
       tags:
