@@ -1109,5 +1109,5 @@ if __name__ == "__main__":
     logging.info("...Look[ed] up Image Filenames")
 
     logging.info("Wr[iting] to Minio...")
-    # sa_augmenter.write_data_to_minio(sa_augmenter.data)
+    sa_augmenter.write_data_to_minio(sa_augmenter.data)
     logging.info("...Wr[ote] to Minio")
