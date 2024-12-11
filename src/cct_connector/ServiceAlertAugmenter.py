@@ -59,6 +59,8 @@ AREA_LOOKUP = {
     "Official Plannig Suburb": ("Official planning suburbs", "OFC_SBRB_NAME"),
     "Official Planning Suburb": ("Official planning suburbs", "OFC_SBRB_NAME"),
     "Solid Waste Regional Service Area": ("Solid Waste service areas", "AREA_NAME"),
+    "Electricity Service Region": ("Electricity Districts", "District"),
+    "Water Service Region": ("Water service region", "WTR_SRV_RGN_NAME"),
     'Citywide': ('City boundary', 'CITY_NAME'),
 }
 AREA_INFERENCE_THRESHOLD = 0.05
