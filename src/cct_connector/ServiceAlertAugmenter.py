@@ -842,7 +842,7 @@ class ServiceAlertAugmenter(ServiceAlertBase.ServiceAlertsBase):
                          use_cached_values=False, stage_cache_salt=AUGMENTER_SALT, index_col=ID_COL)
 
         # all data is reverse sorted
-        self.data = self.get_data_from_minio().sort_values(by=['publish_date'], ascending=False).head(10)
+        self.data = self.get_data_from_minio().sort_values(by=['publish_date'], ascending=False)
 
         # if there aren't new values, take some undrafted ones from the cache
         less_than_limit = DRAFT_LIMIT - self.data.shape[0]
