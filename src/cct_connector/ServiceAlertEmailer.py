@@ -38,9 +38,9 @@ EMAIL_LINK_TEMPLATE = "https://lake.capetown.gov.za/service-alerts.service-alert
 
 @dataclasses.dataclass
 class ServiceAlertEmailConfig(ServiceAlertOutputFileConfig):
-    receivers: typing.Tuple[typing.Tuple[str | None, str], ...]
+    receivers: typing.Tuple[typing.Tuple[str or None, str], ...]
     email_focus: str
-    additional_filter: str | typing.Callable | None
+    additional_filter: str or typing.Callable or None
 
     def apply_additional_filter(self, data_df: pandas.DataFrame) -> pandas.DataFrame:
         logging.debug(f"( pre-filter) {data_df.shape=}")
