@@ -43,9 +43,11 @@ def _clean_sa_df(data_df: pd.DataFrame) -> pd.DataFrame:
         ).dt.time,
         "forecast_end_time": lambda df: df["Forecast_x0020_End_x0020_Time"].apply(
             lambda val: (
-                datetime.strptime(val.replace("60", "59") + "+02:00", "%H:%M%z") if HM_RE.match(val) else None
+                datetime.strptime(
+                    val.replace("60", "59") + "+02:00", "%H:%M%z"
+                ) if pd.notna(None) and HM_RE.match(val) else None
             )
-        ).dt.time,
+        ),
         # Creating timestamps
         "start_timestamp": lambda df: df.apply(
             lambda row: datetime.combine(row["effective_date"], row["start_time"]),
@@ -55,10 +57,10 @@ def _clean_sa_df(data_df: pd.DataFrame) -> pd.DataFrame:
             lambda row: datetime.combine(
                 # Assuming that it ends on the day of expiry
                 (row["expiry_date"] - pd.Timedelta(days=1)).date(),
-                row["forecast_end_time"]
-            ) if pd.notna(row['forecast_end_time']) else None,
+                row["forecast_end_time"].dt.time
+            ).tz_localize("+02:00") if pd.notna(row['forecast_end_time']) else None,
             axis=1
-        ).dt.tz_localize("+02:00"),
+        ),
         "location": lambda df: df.apply(
             lambda row: (
                 # dropping location entry if it overlaps with the description entry
@@ -74,9 +76,9 @@ def _clean_sa_df(data_df: pd.DataFrame) -> pd.DataFrame:
     }).assign(**{
         # fixing cases where the start and end timestamps roll over the day
         "forecast_end_timestamp": lambda df: df.apply(
-            lambda row: row["forecast_end_timestamp"] + pd.Timedelta(days=(
+            lambda row: (row["forecast_end_timestamp"] + pd.Timedelta(days=(
                 1 if row["forecast_end_timestamp"] <= row["start_timestamp"] else 0
-            )),
+            ))) if pd.notna(row["forecast_end_timestamp"]) else None,
             axis=1
         ),
     }).rename(columns={
