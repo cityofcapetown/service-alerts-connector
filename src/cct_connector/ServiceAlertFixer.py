@@ -5,6 +5,7 @@ import re
 from db_utils import minio_utils
 import pandas as pd
 import pyarrow.dataset as ds
+import pytz
 
 from cct_connector import ServiceAlertBase
 from cct_connector import (
@@ -16,6 +17,7 @@ from cct_connector import (
 SN_REGEX_PATTERN = r"^\d{10}$"
 SN_RE = re.compile(SN_REGEX_PATTERN)
 HM_RE = re.compile(r'^\d{2}:\d{2}$')
+SAST_TZ = pytz.timezone('Africa/Johannesburg')
 
 
 def _clean_sa_df(data_df: pd.DataFrame) -> pd.DataFrame:
@@ -43,22 +45,24 @@ def _clean_sa_df(data_df: pd.DataFrame) -> pd.DataFrame:
         ).dt.time,
         "forecast_end_time": lambda df: df["Forecast_x0020_End_x0020_Time"].apply(
             lambda val: (
-                datetime.strptime(val.replace("60", "59") + "+02:00", "%H:%M%z") if HM_RE.match(val) else None
+                datetime.strptime(
+                    val.replace("60", "59") + "+02:00", "%H:%M%z"
+                ) if (pd.notna(val) and HM_RE.match(val)) else None
             )
-        ).dt.time,
+        ),
         # Creating timestamps
         "start_timestamp": lambda df: df.apply(
             lambda row: datetime.combine(row["effective_date"], row["start_time"]),
             axis=1
         ).dt.tz_localize("+02:00"),
         "forecast_end_timestamp": lambda df: df.apply(
-            lambda row: datetime.combine(
+            lambda row: SAST_TZ.localize(datetime.combine(
                 # Assuming that it ends on the day of expiry
                 (row["expiry_date"] - pd.Timedelta(days=1)).date(),
-                row["forecast_end_time"]
-            ) if pd.notna(row['forecast_end_time']) else None,
+                row["forecast_end_time"].time()
+            )) if pd.notna(row['forecast_end_time']) else None,
             axis=1
-        ).dt.tz_localize("+02:00"),
+        ),
         "location": lambda df: df.apply(
             lambda row: (
                 # dropping location entry if it overlaps with the description entry
@@ -68,15 +72,14 @@ def _clean_sa_df(data_df: pd.DataFrame) -> pd.DataFrame:
                         row["Address_x0020_Location_x0020_2"][:len(row["Description12"])] !=
                         row["Description12"][:len(row["Address_x0020_Location_x0020_2"])]
                 ) else None
-            ),
-            axis=1
+            ),            axis=1
         )
     }).assign(**{
         # fixing cases where the start and end timestamps roll over the day
         "forecast_end_timestamp": lambda df: df.apply(
-            lambda row: row["forecast_end_timestamp"] + pd.Timedelta(days=(
+            lambda row: (row["forecast_end_timestamp"] + pd.Timedelta(days=(
                 1 if row["forecast_end_timestamp"] <= row["start_timestamp"] else 0
-            )),
+            ))) if pd.notna(row["forecast_end_timestamp"]) else None,
             axis=1
         ),
     }).rename(columns={
