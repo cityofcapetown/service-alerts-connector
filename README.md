@@ -11,12 +11,12 @@ information about the delivery of services that is both timely **and** useful.
 ### 🔗 Links
 Adapted from [this links doc](https://gist.github.com/Gordonei/947ff2ae93b8a7983594244053724161), these are the live 
 links to the various alerts:
-* [Current Unplanned Outages](https://service-alerts.cct-datascience.xyz/v1/coct-service_alerts-current-unplanned.json)
-* [Current Planned outages](https://service-alerts.cct-datascience.xyz/v1/coct-service_alerts-current-planned.json)
-* [Unplanned outages from the last 7 days](https://service-alerts.cct-datascience.xyz/v1/coct-service_alerts-7days-unplanned.json)
-* [Planned outages from the last 7 days](https://service-alerts.cct-datascience.xyz/v1/coct-service_alerts-7days-planned.json)
-* [All unplanned outages](https://service-alerts.cct-datascience.xyz/v1/coct-service_alerts-all-unplanned.json)
-* [All planned outages](https://service-alerts.cct-datascience.xyz/v1/coct-service_alerts-all-planned.json)
+* [Current Unplanned Outages](https://service-alerts.cct-datascience.xyz/v1.2/service-alerts/current/unplanned)
+* [Current Planned outages](https://service-alerts.cct-datascience.xyz/v1.2/service-alerts/current/planned)
+* [Unplanned outages from the last 7 days](https://service-alerts.cct-datascience.xyz/v1.2/service-alerts/7days/unplanned)
+* [Planned outages from the last 7 days](https://service-alerts.cct-datascience.xyz/v1.2/service-alerts/7days/planned)
+* [All unplanned outages](https://service-alerts.cct-datascience.xyz/v1.2/service-alerts/all/unplanned)
+* [All planned outages](https://service-alerts.cct-datascience.xyz/v1.2/service-alerts/all/planned)
 
 ### 🏗️ Generating Client Libraries from the API Specification
 
@@ -79,7 +79,7 @@ Make this information available wherever it may be useful, in the best possible 
 ### Who is using this information?
 * [Unofficial Mastodon Bot](https://botsin.space/@coct_service_alerts) and [its code](https://github.com/cityofcapetown/mastodon-bots)
 * [CCT Data Science Twitter Bot](https://twitter.com/DataOpm) and [its code](https://github.com/cityofcapetown/twitter-bots)
-* CCT Website - coming soon!
+* [CCT Website](https://www.capetown.gov.za/Pages/City-Alerts.aspx)
 * [EskomSePush](https://esp.info)
 
 (please feel free to submit pull requests with your use cases!)
