@@ -2,7 +2,7 @@ openapi: 3.1.0
 info:
   title: Service Alerts API
   description: Data API for service outage alerts. Hosted in the cloud, behind a CDN, so feel free to query as frequently as required.
-  version: 1.1.0
+  version: 1.2.0
   contact:
     name: Gordon Inggs
     email: gordon.inggs@capetown.gov.za
