@@ -1,0 +1,101 @@
+- role: system
+  content: |
+    Please reason step by step to draft {{ max_post_length }} or less character social media posts about potential City
+    of Cape Town service outage or update, using the details in provided JSON objects. The "service_area" field refers
+    to the responsible department. Prioritise the location, date and time information - you don't have to mention all
+    of the more technical details. Encourage the use of the "request_number" value when contacting the City. Adopt a
+    formal, but polite tone. Correct any obvious spelling errors to South African English. Only return the content of
+    the post for the very last JSON given.
+- role: user
+  content: |
+    {"service_area":"Electricity",
+     "title":"Cable stolen",
+     "description":"Cable stolen",
+     "area":"LWANDLE",
+     "location":"Noxolo st&surr…",
+     "start_timestamp":"2023-09-21T09:00:00+02:00",
+     "forecast_end_timestamp":"2023-09-23T13:00:00+02:00",
+     "status":"Open",
+    {% if 'request_number' in message_dict %}
+     "request_number":"9115677540",
+    {% endif %}
+    "planned":false}
+- role: assistant
+  content: |
+    🔌⚠️ Electricity service outage in Lwandle, Noxolo st & surrounding areas. Cable stolen. Restoration expected by 1pm, 23 Sep.
+    {%- if 'request_number' in message_dict %}
+    For more info, contact City with request number 9115677540
+    {%- else %}
+    For more info, contact the City on 0860 103 089
+    {% endif %}
+- role: user
+  content: |
+    {"service_area": "Water & Sanitation",
+     "title": "Burst Water Main",
+     "description": "Water streaming down the road. Both sides of road affected. Motorists to exercise caution. Maintenance team to conduct repairs asap.",
+     "area": "SONEIKE II",
+     "location": "PAUL KRUGER, SONEIKE II",
+     "start_timestamp": "2024-03-28T14:32:00",
+     "forecast_end_timestamp": "2024-03-29T20:00:00",
+     "planned": false,
+     "status": "Crew on Site",
+     {% if 'request_number' in message_dict %}
+     "request_number": "9116963417",
+     {% endif %}
+     "subtitle": "Running Water"}
+- role: assistant
+  content: |
+    🚧Burst Water Main\n📍Paul Kruger, Soneike
+    ⏰Mar 28, 14:32 PM - Mar 29, 8:00 PM
+    Water running down both sides of the road. Motorists to exercise caution. We have a team on-site, undertaking repairs.
+    {%- if 'request_number' in message_dict %}
+    Please use request number 9116963417 when contacting the City
+    {%- else %}
+    For more info, contact the City on 0860 103 089
+    {% endif %}
+- role: user
+  content: |
+    {"service_area": "Electricity",
+     "title": "Electrical Maintenance - Kiosk Replacement/repair",
+     "description": "Electricity supply affected in surrounding area due to replacement of kiosk.",
+     "area": "DURBANVILLE",
+     "location": "Jagger St",
+     "start_timestamp": "2024-04-30T06:00:00.000Z",
+     "forecast_end_timestamp": "2024-04-30T14:00:00.000Z",
+     "planned": true}
+- role: assistant
+  content: |
+    🔌 Planned Electrical Maintenance in Durbanville
+    📍 Jagger St
+    ⏰ Apr 30, 8am - 4pm
+    Electricity supply affected due to kiosk replacement. Please note that this is a planned outage and we apologise for any inconvenience caused.
+    For more info, contact the City on 0860 103 089
+- role: user
+  content: |
+    {"area": "EDGEMEAD",
+     "description": "Mains supplying area affected. Water tankers providing water at demarcated points to be confirmed",
+     "forecast_end_timestamp": "2024-12-19T01:10:00",
+     "location": "Boekenhout Rd\nEdgemead\n",
+     "planned": false,
+     {%- if 'request_number' in message_dict %}
+     "request_number": "9118934675",
+     {% endif %}
+     "service_area": "Water \u0026 Sanitation",
+     "start_timestamp": "2024-12-18T19:10:00",
+     "status": "Issue Resolved",
+     "subtitle": "Main Pipe burst/Unplanned emergency maintenance",
+     "title": "Water Off"}
+- role: assistant
+  content: |
+    🚨 Water Supply Alert in Edgemead
+    📍 Boekenhout Rd
+    ⏰ Dec 18, 7:10 PM
+    Mains supplying the area was affected, should be resolved now. Please let us know if you are still being affected.
+    {%- if 'request_number' in message_dict %}
+    Please use request number 9118934675 when contacting the City
+    {%- else %}
+    For more info, contact the City on 0860 103 089
+    {% endif %}
+- role: user
+  content: |
+    {{ message_dict|tojson }}

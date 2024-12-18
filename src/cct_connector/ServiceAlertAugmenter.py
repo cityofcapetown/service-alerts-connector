@@ -16,6 +16,7 @@ import geopandas
 from db_utils import minio_utils, proxy_utils, secrets_utils
 from geopy.geocoders import Nominatim
 from geospatial_utils import mportal_utils
+import jinja2
 import Levenshtein
 import pandas
 import requests
@@ -26,6 +27,7 @@ import shapely
 import shapely.geometry
 import shapely.wkt
 from tqdm.auto import tqdm
+import yaml
 
 from cct_connector import ServiceAlertBase
 from cct_connector import (
@@ -42,6 +44,10 @@ FALLBACK_DRAFTING_MODEL = "llama3-8b-it-q5"
 DRAFT_LIMIT = 10
 PROMPT_LENGTH_LIMIT = 8192
 DRAFT_TIMEOUT = 120
+RESOURCES_PATH = pathlib.Path(__file__).parent / ".." / "resources"
+LOCATION_PROMPT_TEMPLATE_PATH = RESOURCES_PATH / "location_prompt_template.yaml.jinja2"
+SUMMARY_PROMPT_TEMPLATE_PATH = RESOURCES_PATH / "summary_prompt_template.yaml.jinja2"
+SHORTEN_PROMPT_TEMPLATE_PATH = RESOURCES_PATH / "shorten_prompt_template.yaml.jinja2"
 
 SERVICE_AREA_HASHTAGS = {
     "Water & Sanitation": "#WaterAndSanitation",
@@ -150,7 +156,9 @@ def _geocode_location(address: str,
         logging.debug(f"{streets_lookup_gdf.shape=}")
         if not streets_lookup_gdf.empty:
             logging.debug(f"Found {address} in streets lookup!")
-            logging.debug(f"streets_lookup_gdf.sample(5)=\n{streets_lookup_gdf.sample(min([5,streets_lookup_gdf.shape[0]]))}")
+            logging.debug(
+                f"streets_lookup_gdf.sample(5)=\n{streets_lookup_gdf.sample(min([5, streets_lookup_gdf.shape[0]]))}"
+            )
 
             # handling the case where there are multiple streets in the area with the same name
             # (usually segments that have gotten split up)
@@ -198,221 +206,23 @@ def _geocode_location(address: str,
     return output_shape
 
 
+def _render_prompt_template(prompt_path: pathlib.Path, **prompt_vars) -> typing.Collection[typing.Dict]:
+    with open(prompt_path) as summary_template_file:
+        summary_template = jinja2.Template(
+            summary_template_file.read(),
+        ).render(**prompt_vars, undefined=jinja2.StrictUndefined)
+
+    return yaml.load(summary_template, Loader=yaml.Loader)
+
+
 def _cptgpt_location_call_wrapper(location_dict: typing.Dict, http_session: requests.Session) -> typing.List or None:
     endpoint = PRIMARY_GPT_ENDPOINT
-    # ToDo move messages to standalone config file
+    location_prompt = _render_prompt_template(LOCATION_PROMPT_TEMPLATE_PATH,
+                                              location_dict=location_dict,
+                                              response_text="")
     params = {
         "model": PRIMARY_DRAFTING_MODEL,
-        "messages": [
-            {
-                "role": "system",
-                "content": "You reason step by step to prepare a nested JSON array of strings for submission to an online geocoding service that is very sensitive to correct spelling and exact wording. My intention is to use this service to translate text descriptions of locations within the City of Cape Town into cartographic polygons of areas affected by service outages.\n\nYou will be provided with JSON objects that might contain a \"area\" field, that contain entries from a controlled list of wider areas in the City of Cape Town, but definitely a \"location\" field that contain one or more specific locations within that area, captured as free text. \n\nPlace each location described in a separate array. Also, remove any references to generic areas of the City (e.g. Southern Suburbs). Within each location array, give up to 5 suggestions for strings to be submitting to the geocoding service. \n\nFor the first suggestion, stay close to the location as given, but for the subsequent entries draw upon your knowledge of addresses in general, and Cape Town in particular, to suggest possible variations in both suffixes (e.g. St, Rd, Cres) and spelling.\n\nOnly provide the resulting array of arrays for the last object given."
-            },
-            {
-                "role": "user",
-                "content": "{\narea\": \"VOELVLEI\",\n\"location\": \"The Voëlvlei Water Treatment Plant will be shut down for standard routine maintenance to operational valves from 08:00 until 16:00 on Thursday 25 April 2024. It will impact the water supply to the reservoirs supplying Durbanville, Fisantekraal, Klipheuwel, Uitzicht, Pinehurst and Sonstraalhoogte in the Northern parts of the city. Residents in these areas are kindly requested to reduce their consumption during this period. The City is topping up its reservoirs prior to the shutdown\"\n}"
-            },
-            {
-                "role": "assistant",
-                "content": "[[\"Durbanville\"], [\"Fisantekraal\"], [\"Klipheuwel\"] , [\"Uitzicht\"], [\"Pinehurst\"], [\"Sonstraalhoogte\"]]"
-            },
-            {
-                "role": "user",
-                "content": "{\n\"area\": \"BELLVILLE CBD\",\n\"location\": \"Ridgeworth and Bloemhof\"\n}"
-            },
-            {
-                "role": "assistant",
-                "content": "[[\"Ridgeworth, Bellville CBD\", \"Ridgeworth, Bellville\"], [\"Bloemhof, Bellville CBD\", \"Bloemhof, Bellville\"]]"
-            },
-            {
-                "role": "user",
-                "content": "{    \n\"area\": \"MILNERTON\",\n\"location\": \"Milnerton area\"\n}"
-            },
-            {
-                "role": "assistant",
-                "content": "[[\"Milnerton\"]]"
-            },
-            {
-                "role": "user",
-                "content": "{\n\"area\": \"MAMRE\",\n\"location\": \"Lavender St & surr\"\n}"
-            },
-            {
-                "role": "assistant",
-                "content": "[[\"Lavender St, Mamre\", \"Lavender Cres, Mamre\", \"Lavender Rd, Mamre\"]]"
-            },
-            {
-                "role": "user",
-                "content": "{\"area\": \"HOUT BAY\", \"location\": \"Portion of Hout Bay Harbour Rd & Immediate Surr\"}"
-            },
-            {
-                "role": "assistant",
-                "content": "[[\"Hout Bay Harbour Rd, Hout Bay\", \"Harbour Rd, Hout Bay\", \"Hout Bay Harbour Way, Hout Bay\"]]"
-            },
-            {
-                "role": "user",
-                "content": "{\"area\": \"NEWLANDS\", \"location\": \"Almond Road\"}"
-            },
-            {
-                "role": "assistant",
-                "content": "[[\"Almond Rd, Newlands\", \"Almond St, Newlands\"]]"
-            },
-            {
-                "role": "user",
-                "content": "{\"area\": \"MANENBERG\", \"location\": \"Yusuf Dadoo Road\\\\n\"}"
-            },
-            {
-                "role": "assistant",
-                "content": "[[\"Yusuf Dadoo Rd, Manenberg\", \"Yusuf Dadoo St, Manenberg\"]]"
-            },
-            {
-                "role": "user",
-                "content": "{\"area\": \"PARKLANDS\", \"location\": \"7 Malborough Road\"}"
-            },
-            {
-                "role": "assistant",
-                "content": "[[\"Malborough Rd, Parklands\", \"Malborough St, Parklands\", \"Marlborough Rd, Parklands\", \"Malborough Cres, Parklands\"]]"
-            },
-            {
-                "role": "user",
-                "content": "{\"area\": \"KLIPKOP\", \"location\": \"Claredon street\"}"
-            },
-            {
-                "role": "assistant",
-                "content": "[[\"Claredon St, Klipkop\", \"Clarendon St, Klipkop\", \"Claredon Rd, Klipkop\", \"Claredon Ave, Klipkop\"]]"
-            },
-            {
-                "role": "user",
-                "content": "{\"area\": \"VREDEKLOOF\", \"location\": \"De Bron, Sheba, Sonte, Garderner, Tivan, Sylvia, Barry, De Tuin, Daniel, Lula, Wilfrank, James & Rebecca - Vredekloof - Brackenfell\"}"
-            },
-            {
-                "role": "assistant",
-                "content": "[[\"De Bron, Vredekloof\"],[\"Sheba, Vredekloof\"],[\"Sonte, Vredekloof\"],[\"Garderner, Vredekloof\", \"Gardener, Vredekloof\"],[\"Tivan, Vredekloof\"],[\"Sylvia, Vredekloof\"],[\"Barry, Vredekloof\"],[\"De Tuin, Vredekloof\"],[\"Daniel, Vredekloof\"],[\"Lula, Vredekloof\"],[\"Wilfrank, Vredekloof\"],[\"James, Vredekloof\"],[\"Rebecca, Vredekloof\"]]"
-            },
-            {
-                "role": "user",
-                "content": "{\"area\": \"VRYGROND\", \"location\": \"Vrygronf Road & surr\"}"
-            },
-            {
-                "role": "assistant",
-                "content": "[[\"Vrygrond Rd, Vrygrond\", \"Vrygrond St, Vrygrond\", \"Vrygrond Ave, Vrygrond\"]]"
-            },
-            {
-                "role": "user",
-                "content": "{\"area\": \"KHAYELITSHA\", \"location\": \"NTLANDLOLO ROAD, ENKANINI, KHAYELITSHA\"}"
-            },
-            {
-                "role": "assistant",
-                "content": "[[\"Ntlandlolo Rd, Khayelitsha\", \"Ntlandlolo Rd, Khayelitsha\", \"Ntlandlolo St, Khayelitsha\"]]"
-            },
-            {
-                "role": "user",
-                "content": "{\"area\": \"LEONSDALE\", \"location\": \"24 16th\"}"
-            },
-            {
-                "role": "assistant",
-                "content": "[[\"16th St, Leonsdale\", \"16th Ave, Leonsdale\", \"16th Rd, Leonsdale\"]]"
-            },
-            {
-                "role": "user",
-                "content": "{\"area\": \"KLIPKOP\", \"location\": \"Koekelenberg Street\"}"
-            },
-            {
-                "role": "assistant",
-                "content": "[[\"Koekelenberg St, Klipkop\", \"Koekelenberg Rd, Klipkop\", \"Koekelenburg St, Klipkop\", \"Koegelenberg St, Klipkop\"]]"
-            },
-            {
-                "role": "user",
-                "content": "{\"area\": \"SCOTTSDENE\", \"location\": \"CAVALLERIA CRESCENT, sCOTTSDENE, KRAAIFONTEIN\"}"
-            },
-            {
-                "role": "assistant",
-                "content": "[[\"Cavalleria Cres, Scottsdene\", \"Cavalaria Cres, Scottsdene\", \"Cavaleria Cres, Scottsdene\", \"Cavaleria St, Scottsdene\"\"]]"
-            },
-            {
-                "role": "user",
-                "content": "{\"location\": \"AREA EAST COLLECTIONS Backlog Suburbs in Progress: Delayed Suburbs: Tuesday, 23 April 2024 Comment\\\\n\\\\uf0b7 None\\\\n\\\\uf0b7 Makhaza\\\\n\\\\uf0b7 Roundhay\\\\n\\\\uf0b7 Jaqueshill\\\\n\\\\uf0b7 Berbago\\\\n\\\\uf0b7 Die Wingerd\\\\n\\\\uf0b7 Briza\\\\n\\\\uf0b7 Goedehoop\\\\n\\\\uf0b7 Bridgewater\\\\n\\\\uf0b7 Carey Park\\\\n\\\\uf0b7 Longdown Estate\\\\n\\\\uf0b7 Westridge\\\\n\\\\uf0b7 Somersetridge\\\\n\\\\uf0b7 Motor City\\\\nPlease leave bin out until 21:00\\\\nIf not serviced\\\\ntake bin onto property and place out by 06:30 the following day\"}"
-            },
-            {
-                "role": "assistant",
-                "content": "[[\"Makhaza\"],[\"Roundhay\"],[\"Jaqueshill\", \"Jacques Hill\"],[\"Berbago\"],[\"Die Wingerd\", \"Die Wingert\"],[\"Goedehoop\"], [\"Bridgewater\"], [\"Carey Park\"], [\"Longdown Estate\"], [\"Westridge\"], [\"Somersetridge\", \"Somerset Ridge\"], [\"Motor City\"]]"
-            },
-            {
-                "role": "user",
-                "content": "{\"area\": \"CONSTANTIA\", \"location\": \"Avenue Beauvias Street\\\\nConstantia\"}"
-            },
-            {
-                "role": "assistant",
-                "content": "[[\"Avenue Beauvias St, Constantia\", \"Avenue Beauvais St, Constantia\", \"Beauvias Ave, Constantia\", \"Avenue Beauvais, Constantia\"]]"
-            },
-            {
-                "role": "user",
-                "content": "{\"location\": \"AREA SOUTH COLLECTIONS Backlog Suburbs in Progress: Delayed Suburbs: Tuesday, 23 April 2024 Comment\\\\n\\\\uf0b7 None\\\\n\\\\uf0b7 Westridge\\\\n\\\\uf0b7 Grassy Park\\\\n\\\\uf0b7 Lower Crossroads\"}"
-            },
-            {
-                "role": "assistant",
-                "content": "[[\"Westridge\"],[\"Grassy Park\"],[\"Lower Crossroads\", \"Crossroads\"]]"
-            },
-            {
-                "role": "user",
-                "content": "{\"area\": \"ATHLONE\", \"location\": \"Telford, Lawrence road & surrounds\"}"
-            },
-            {
-                "role": "assistant",
-                "content": "[[\"Telford Rd, Athlone\", \"Telford St, Athlone\"], [\"Lawrence Rd, Athlone\", \"Lawrence St, Athlone\"]]"
-            },
-            {
-                "role": "user",
-                "content": "{\"area\": \"HOUT BAY\", \"location\": \"Victorskloof \\\\u2013 Hout Bay\"}"
-            },
-            {
-                "role": "assistant",
-                "content": "[[\"Victorskloof, Hout Bay\", \"Victorskloof, Houtbay\",]]"
-            },
-            {
-                "role": "user",
-                "content": "{\"area\": \"SONKRING\", \"location\": \"Corner Berk and Vredeveld\"}"
-            },
-            {
-                "role": "assistant",
-                "content": "[[\"Berk, Sonkring\", \"Berk St, Sonkring\", \"Berk Rd, Sonkring\"],[\"Vredeveld, Sonkring\", \"Vredeveld St, Sonkring\", \"Vredeveld Rd, Sonkring\"]]"
-            },
-            {
-                "role": "user",
-                "content": "{\"area\": \"GLENLILY\", \"location\": \"C/O Fairfield & Third Avenue\"}"
-            },
-            {
-                "role": "assistant",
-                "content": "[[\"Fairfield Ave, Glenlily\", \"Fairfield Rd, Glenlily\"],[\"Third Avenue, Glenlily\", \"3rd Ave, Glenlily\"]]"
-            },
-            {
-                "role": "user",
-                "content": "{\"area\": \"MOWBRAY\", \"location\": \"Strubens roads\"}"
-            },
-            {
-                "role": "assistant",
-                "content": "[[\"Strubens Rd, Mowbray\", \"Struben St, Mowbray\", \"Strubens Ave, Mowbray\"]]"
-            },
-            {
-                "role": "user",
-                "content": "{\"area\": \"RAVENSMEAD\", \"location\": \"Florida Street, between 6th avenue and 15th avenue\"}"
-            },
-            {
-                "role": "assistant",
-                "content": "[[\"Florida St, Ravensmead\", \"Florida Rd, Ravensmead\"],[\"6th Ave, Ravensmead\", \"6th St, Ravensmead\"],[\"15th Ave, Ravensmead\", \"15th St, Ravensmead\"]]"
-            },
-            {
-                "role": "user",
-                "content": "{\"location\": \"AREA EAST COLLECTIONS:\n Mfuleni\n Kuilsriver Trade\n Gaylee\n Greenfields\n Sonkring\n Steynrust\"}"
-            },
-            {
-                "role": "assistant",
-                "content": "[[\"Mfuleni\"], [\"Kuilsrivier Industria\", \"Kuilsrivier\",\"Kuils River\"], [\"Gaylee\"], [\"Greenfields\"],[\"Sonkring\"], [\"Steynrust\"]]"
-            },
-            {
-                "role": "user",
-                "content": json.dumps(location_dict)
-            }
-        ],
+        "messages": location_prompt,
         "temperature": 0.2,
     }
     headers = {}
@@ -467,18 +277,10 @@ def _cptgpt_location_call_wrapper(location_dict: typing.Dict, http_session: requ
             last_error = e
 
             if t == 0 and len(response_text) > 0:
-                params["messages"] += [
-                    {
-                        "role": "assistant",
-                        "content": response_text
-                    },
-                    {
-                        "role": "user",
-                        "content": "You responded with a malformed or incorrectly structured JSON array. "
-                                   "Please fix this to only be nested JSON array(s) of the location(s) in the last JSON"
-                                   " object I provided you with. Only return the corrected JSON array."
-                    }
-                ]
+                # trying to get it to clean the response text if it's invalid JSON
+                params["messages"] = _render_prompt_template(LOCATION_PROMPT_TEMPLATE_PATH,
+                                                             location_dict=location_dict,
+                                                             response_text=response_text)
             else:
                 params["temperature"] += 0.1
 
@@ -511,101 +313,18 @@ def _cptgpt_location_call_wrapper(location_dict: typing.Dict, http_session: requ
 
 def _cptgpt_summarise_call_wrapper(message_dict: typing.Dict, http_session: requests.Session,
                                    max_post_length: int) -> str or None:
-    system_prompt = (
-        f'Please reason step by step to draft {max_post_length} or less character social media posts about potential '
-        'City of Cape Town service outage or update, using the details in provided JSON objects. '
-        'The "service_area" field refers to the responsible department. '
-        'Prioritise the location, date and time information '
-        '- you don\'t have to mention all of the more technical details.'
-        'Encourage the use of the "request_number" value when contacting the City. '
-        'Adopt a formal, but polite tone. '
-        'Correct any obvious spelling errors to South African English. '
-        'Only return the content of the post for the very last JSON given.'
-    )
+    prompt_dict = _render_prompt_template(SUMMARY_PROMPT_TEMPLATE_PATH,
+                                          message_dict=message_dict,
+                                          max_post_length=max_post_length)
 
     endpoint = PRIMARY_GPT_ENDPOINT
     params = {
         "model": PRIMARY_DRAFTING_MODEL,
-        "messages": [
-            {"role": "system", "content": system_prompt},
-            {
-                "role": "user",
-                "content": (
-                    '{"service_area":"Electricity","title":"Cable stolen","description":"Cable stolen","area":"LWANDLE",'
-                    ' "location":"Noxolo st&surr…","start_timestamp":"2023-09-21T09:00:00+02:00",'
-                    ' "forecast_end_timestamp":"2023-09-23T13:00:00+02:00","planned":false,"request_number":"9115677540"}'
-                )},
-            {
-                "role": "assistant",
-                "content": (
-                    "🔌⚠️ Electricity service outage in Lwandle, Noxolo st & surrounding areas. Cable stolen. Restoration "
-                    "expected by 1pm, 23 Sep. For more info, contact City with request number 9115677540"
-                )},
-            {
-                "role": "user",
-                "content": (
-                    '{"service_area": "Water & Sanitation","title": "Burst Water Main",'
-                    '"description": "Water streaming down the road. Both sides of road affected. '
-                    'Motorists to exercise caution. Maintenance team to conduct repairs asap.",'
-                    '"area": "SONEIKE II","location": "PAUL KRUGER, SONEIKE II",'
-                    '"start_timestamp": "2024-03-28T14:32:00","forecast_end_timestamp": "2024-03-29T20:00:00",'
-                    '"planned": false,"request_number": "9116963417","subtitle": "Running Water"}'
-                )},
-            {
-                "role": "assistant",
-                "content": (
-                    "🚧Burst Water Main🚧\n📍Paul Kruger, Soneike\n⏰Mar 28, 14:32 PM - Mar 29, 8:00 PM\n"
-                    "Water running down both sides of the road. Motorists to exercise caution. Please use request number "
-                    "9116963417 when contacting the City"
-                )},
-            {
-                "role": "user",
-                "content": (
-                    "{\"service_area\": \"Electricity\", \"title\": \"Electrical Maintenance - "
-                    "Kiosk Replacement/repair\", \"description\": \"Electricity supply affected in surrounding "
-                    "area due to replacement of kiosk.\", \"area\": \"DURBANVILLE\", \"location\": \"Jagger St\", "
-                    "\"start_timestamp\": \"2024-04-30T06:00:00.000Z\", "
-                    "\"forecast_end_timestamp\": \"2024-04-30T14:00:00.000Z\", "
-                    "\"planned\": true}"
-                )},
-            {
-                "role": "assistant",
-                "content": (
-                    "🔌 Planned Electrical Maintenance in Durbanville\n"
-                    "📍 Jagger St\n"
-                    "⏰ Apr 30, 8am - 4pm\n"
-                    "Electricity supply affected due to kiosk replacement. Please note that this is a planned "
-                    "outage and we apologise for any inconvenience caused. For more info, contact the City on "
-                    "0860 103 089"
-                )
-            },
-            {"role": "user", "content": json.dumps(message_dict)},
-        ],
+        "messages": prompt_dict,
         "temperature": 0.2,
         "frequency_penalty": 1,
     }
     headers = {}
-
-    for i, entry in enumerate(params["messages"]):
-        message = entry['content']
-
-        # stripping the request number field out of the prompts - it just confuses the model
-        if 'request_number' not in message_dict:
-            message = message.replace(
-                'Encourage the use of the "request_number" value when contacting the City.', ''
-            ).replace(
-                ',"request_number":"9115677540"', ""
-            ).replace(
-                'For more info, contact City with request number 9115677540',
-                "For more info, contact the City on 0860 103 089"
-            ).replace(
-                ',"request_number":"9115690645"', ""
-            ).replace(
-                'Please use request number 9115690645 when contacting the City',
-                "For more info, contact the City on 0860 103 089"
-            )
-
-        params["messages"][i]["content"] = message
 
     # Wrapping call in retry loop
     last_error = None
@@ -645,38 +364,11 @@ def _cptgpt_summarise_call_wrapper(message_dict: typing.Dict, http_session: requ
             return response_text
         except AssertionError as e:
             if post_too_long:
-                params["messages"] = [
-                    {"role": "system", "content": (
-                        f'You shorten posts for social media. Please reason step by step summarise the post that follows to '
-                        f'no more than {max_post_length} characters. Summarise any long lists using words like multiple or '
-                        'many. Prioritise dates and area information over the causes of issues. Only return the content of '
-                        'the final summarised post.'
-                    )},
-                    {"role": "user", "content": (
-                        '🚮 Refuse collection delays in Woodlands, Waters, Sea Point, Claremont, Lansdowne, Garlandale, '
-                        'Bellville Industrial, Bellrail, Bville CBD, Sanlamhof, Dunrobin, Stikland, Saxon Industrial, '
-                        'Ravensmead, Parow Industrial, Parow Industria, Epping 2. Due to strike action. Leave bin out until'
-                        ' 21:00 if not serviced. Take bin onto property & place out by 06:30 the following day.'
-                    )},
-                    {"role": "assistant", "content": (
-                        '🚮Refuse collection delays affecting multiple areas🚮. Leave bin out until 21:00 if not serviced,'
-                        'and then put out again by 06:30 the next day'
-                    )},
-                    {"role": "user", "content": (
-                        '🚧 Planned Maintenance 🚧\n'
-                        '📍Die Wingerd, Greenway Rise, Stuart\'s Hill, Martinville, Schapenberg, Hageland Estate, '
-                        'Sea View Lake Estate, Cherrywood Gardens (Bizweni - Somerset West)\n'
-                        '⏰Thursday, 21:00 - 04:00\n'
-                        'Zero-pressure testing on the water supply network'
-                    )},
-                    {"role": "assistant", "content": (
-                        '🚧 Planned Maintenance 🚧\n'
-                        '📍Multiple Areas\n'
-                        '⏰Thursday, 21:00 - 04:00\n'
-                        'Zero-pressure testing on the water supply network'
-                    )},
-                    {"role": "user", "content": response_text},
-                ]
+                params["messages"] = _render_prompt_template(
+                    SHORTEN_PROMPT_TEMPLATE_PATH,
+                    max_post_length=max_post_length,
+                    response_text=response_text
+                )
 
             params["temperature"] += 0.2
 
@@ -855,7 +547,7 @@ class ServiceAlertAugmenter(ServiceAlertBase.ServiceAlertsBase):
         ):
             logging.debug(f"Adding {less_than_limit} entries from cache into main data")
             moving_from_cache = self.cache_data.loc[
-                self.cache_data[TWEET_COL].isna() | self.cache_data[TOOT_COL].isna(),
+                self.cache_data[TWEET_COL].isna() or self.cache_data[TOOT_COL].isna(),
                 self.data.columns
             ].sort_values(by=['publish_date']).tail(less_than_limit * 2).pipe(
                 lambda df: df.sample(min([df.shape[0], less_than_limit]))
@@ -884,18 +576,17 @@ class ServiceAlertAugmenter(ServiceAlertBase.ServiceAlertsBase):
                 (ID_COL, 'InputChecksum',
                  'publish_date', 'effective_date', 'expiry_date',
                  'notification_number',
-                 'status',
                  'area_type', GEOSPATIAL_COL, IMAGE_COL,
-                 TWEET_COL, TOOT_COL,
-                 )
+                 TWEET_COL, TOOT_COL,)
                 if c in source_data.columns
             ]
         )
 
         # converting the timezone values to SAST
         for ts in ("start_timestamp", "forecast_end_timestamp"):
-            source_data[ts] = source_data[ts].dt.tz_convert("+02:00")
-            source_data[ts] = source_data[ts].dt.strftime("%Y-%m-%dT%H:%M:%S")
+            if ts in source_data:
+                source_data[ts] = source_data[ts].dt.tz_convert("+02:00")
+                source_data[ts] = source_data[ts].dt.strftime("%Y-%m-%dT%H:%M:%S")
 
         json_dicts = source_data.to_dict(orient='records')
 

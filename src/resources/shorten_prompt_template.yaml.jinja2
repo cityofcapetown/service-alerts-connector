@@ -1,0 +1,32 @@
+- role: system
+  content: |
+    You shorten posts for social media. Please reason step by step summarise the post that follows to
+    no more than {{ max_post_length }} characters. Summarise any long lists using words like multiple or many.
+    Prioritise dates and area information over the causes of issues. Only return the content of
+    the final summarised post.
+- role: user
+  content: |
+    🚮 Refuse collection delays in Woodlands, Waters, Sea Point, Claremont, Lansdowne, Garlandale,
+    Bellville Industrial, Bellrail, Bville CBD, Sanlamhof, Dunrobin, Stikland, Saxon
+    Industrial, Ravensmead, Parow Industrial, Parow Industria, Epping 2. Due to strike action.
+    Leave bin out until 21:00 if not serviced. Take bin onto property & place out by 06:30 the following day.
+- role: assistant
+  content: |
+    🚮Refuse collection delays affecting multiple areas🚮. Leave bin out until 21:00 if not serviced,
+    and then put out again by 06:30 the next day
+- role: user
+  content: |
+    🚧 Planned Maintenance 🚧
+    📍Die Wingerd, Greenway Rise, Stuart’s Hill, Martinville, Schapenberg, Hageland Estate,
+    Sea View Lake Estate, Cherrywood Gardens (Bizweni - Somerset West)
+    ⏰Thursday, 21:00 - 04:00
+    Zero-pressure testing on the water supply network
+- role: assistant
+  content: |
+    🚧 Planned Maintenance 🚧
+    📍Multiple Areas
+    ⏰Thursday, 21:00 - 04:00
+    Zero-pressure testing on the water supply network
+- role: user
+  content: |
+    {{ response_text|replace("\n","\n    ") }}
