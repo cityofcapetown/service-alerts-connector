@@ -1,0 +1,145 @@
+- role: system
+  content: |
+    You reason step by step to prepare a nested JSON array of strings for submission to an online geocoding service that
+    is very sensitive to correct spelling and exact wording. My intention is to use this service to translate text
+    descriptions of locations within the City of Cape Town into cartographic polygons of areas affected by service
+    outages.
+    You will be provided with JSON objects that might contain a "area" field, that contain entries from a controlled
+    list of wider areas in the City of Cape Town, but definitely a "location" field that contain one or more specific
+    locations within that area, captured as free text.
+    Place each location described in a separate array. Also, remove any references to generic areas of the City
+    (e.g. Southern Suburbs). Within each location array, give up to 5 suggestions for strings to be submitting to the
+    geocoding service. \n\nFor the first suggestion, stay close to the location as given, but for the subsequent entries
+    draw upon your knowledge of addresses in general, and Cape Town in particular, to suggest possible variations in
+    both suffixes (e.g. St, Rd, Cres) and spelling.
+    Only provide the resulting array of arrays for the last object given.
+- role: user
+  content: |
+    {"area": "VOELVLEI",
+     "location": "The Voëlvlei Water Treatment Plant will be shut down for standard routine maintenance to operational valves from 08:00 until 16:00 on Thursday 25 April 2024. It will impact the water supply to the reservoirs supplying Durbanville, Fisantekraal, Klipheuwel, Uitzicht, Pinehurst and Sonstraalhoogte in the Northern parts of the city. Residents in these areas are kindly requested to reduce their consumption during this period. The City is topping up its reservoirs prior to the shutdown"}
+- role: assistant
+  content: |
+    [["Durbanville"], ["Fisantekraal"], ["Klipheuwel"] , ["Uitzicht"], ["Pinehurst"], ["Sonstraalhoogte"]]
+- role: user
+  content: |
+    {"area": "BELLVILLE CBD",
+     "location": "Ridgeworth and Bloemhof"}
+- role: assistant
+  content: |
+    [["Ridgeworth, Bellville CBD", "Ridgeworth, Bellville"], ["Bloemhof, Bellville CBD", "Bloemhof, Bellville"]]
+- role: user
+  content: |
+    {"area": "MILNERTON",
+     "location": "Milnerton area"}
+- role: assistant
+  content: |
+    [["Milnerton"]]
+- role: user
+  content: |
+    {"area": "MAMRE",
+     "location": "Lavender St & surr"}
+- role: assistant
+  content: |
+    [["Lavender St, Mamre", "Lavender Cres, Mamre", "Lavender Rd, Mamre"]]
+- role: user
+  content: |
+    {"area": "HOUT BAY",
+     "location": "Portion of Hout Bay Harbour Rd & Immediate Surr"}
+- role: assistant
+  content: |
+    [["Hout Bay Harbour Rd, Hout Bay", "Harbour Rd, Hout Bay", "Hout Bay Harbour Way, Hout Bay"]]
+- role: user
+  content: |
+    {"area": "NEWLANDS",
+     "location": "Almond Road"}
+- role: assistant
+  content: |
+    [["Almond Rd, Newlands", "Almond St, Newlands"]]
+- role: user
+  content: |
+    {"area": "MANENBERG",
+     "location": "Yusuf Dadoo Road\\\\n"}
+- role: assistant
+  content: |
+    [["Yusuf Dadoo Rd, Manenberg", "Yusuf Dadoo St, Manenberg"]]
+- role: user
+  content: |
+    {"area": "PARKLANDS",
+     "location": "7 Malborough Road"}
+- role: assistant
+  content: |
+    [["Malborough Rd, Parklands", "Malborough St, Parklands", "Marlborough Rd, Parklands", "Malborough Cres, Parklands"]]
+- role: user
+  content: |
+    {"area": "KLIPKOP",
+     "location": "Claredon street"}
+- role: assistant
+  content: |
+    [["Claredon St, Klipkop", "Clarendon St, Klipkop", "Claredon Rd, Klipkop", "Claredon Ave, Klipkop"]]
+- role: user
+  content: |
+    {"area": "VREDEKLOOF",
+     "location": "De Bron, Sheba, Sonte, Garderner, Tivan, Sylvia, Barry, De Tuin, Daniel, Lula, Wilfrank, James & Rebecca - Vredekloof - Brackenfell"}
+- role: assistant
+  content: |
+    [["De Bron, Vredekloof"],["Sheba, Vredekloof"],["Sonte, Vredekloof"],["Garderner, Vredekloof", "Gardener, Vredekloof"],["Tivan, Vredekloof"],["Sylvia, Vredekloof"],["Barry, Vredekloof"],["De Tuin, Vredekloof"],["Daniel, Vredekloof"],["Lula, Vredekloof"],["Wilfrank, Vredekloof"],["James, Vredekloof"],["Rebecca, Vredekloof"]}
+- role: user
+  content: |
+    {"area": "VRYGROND",
+     "location": "Vrygronf Road & surr"}
+- role: assistant
+  content: |
+    [["Vrygrond Rd, Vrygrond", "Vrygrond St, Vrygrond", "Vrygrond Ave, Vrygrond"]]
+- role: user
+  content: |
+    {"area": "KHAYELITSHA",
+     "location": "Ntlandlolo Road, Enkani\ni, Khayelitsha"}
+- role: assistant
+  content: |
+    [["Ntlandlolo Rd, Khayelitsha", "Ntlandlolo Rd, Khayelitsha", "Ntlandlolo St, Khayelitsha"]]
+- role: user
+  content: |
+    {"area": "LEONSDALE",
+     "location": "24 16th"}
+- role: assistant
+  content: |
+    [["16th St, Leonsdale", "16th Ave, Leonsdale", "16th Rd, Leonsdale"]]
+- role: user
+  content: |
+    {"area": "KLIPKOP",
+     "location": "Koekelenberg Street"}
+- role: assistant
+  content: |
+    [["Koekelenberg St, Klipkop", "Koekelenberg Rd, Klipkop", "Koekelenburg St, Klipkop", "Koegelenberg St, Klipkop"]]
+- role: user
+  content: |
+    {"area": "SCOTTSDENE",
+     "location": "Cavalleria Crescent, Scottsdene, Kraaifontein"}
+- role: assistant
+  content: |
+    [["Cavalleria Cres, Scottsdene", "Cavalaria Cres, Scottsdene", "Cavaleria Cres, Scottsdene", "Cavalleria St, Scottsdene"]]
+- role: user
+  content: |
+    {"location": "AREA EAST COLLECTIONS:\n Mfuleni\n Kuilsriver Trade\n  Gaylee\n  Greenfields\n  Sonkring\n  Steynrust"}
+- role: assistant
+  content: |
+    [["Mfuleni"], ["Kuilsrivier Industria", "Kuilsrivier", "Kuils River"], ["Gaylee"], ["Greenfields"],["Sonkring"], ["Steynrust"]]
+- role: user
+  content: |
+    {"location": "BRACKENFELL INDUSTRIA;FERNDALE;MFULENI;MORGENSTER HEIGHTS;"}
+- role: assistant
+  content: |
+    [["Brackenfell Industria"], ["Ferndale"], ["Mfuleni"], ["Morgenster Heights"]]
+- role: user
+  content: |
+    {{ location_dict|tojson }}
+{% if response_text != "" %}
+- role: assistant
+  content: |
+    {{ response_text }}
+- role: user
+  content: |
+    You responded with a malformed or incorrectly structured JSON array. Please fix this to only be nested JSON array(s)
+    of the location(s) in the last JSON object I provided you with.
+    Only return the corrected JSON array.
+{% endif %}

@@ -153,7 +153,8 @@ class ServiceAlertFixer(ServiceAlertBase.ServiceAlertsBase):
         self.data = pd.concat((
             old_data, self.data
         )).drop_duplicates(
-            subset=[ID_COL, ]
+            subset=[ID_COL,],
+            keep='last'
         )
         logging.debug(f"    post dedup - {self.data.shape=}")
 
