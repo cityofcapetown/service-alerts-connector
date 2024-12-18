@@ -89,7 +89,7 @@ paths:
   /v1.2/service-alerts/{timeFrame}/{planned}:
     get:
       tags:
-        - "v1.1"
+        - "v1.2"
       summary: list service alerts
       description: Get all service alerts, according to the parameters set with additional status field.
       parameters:
