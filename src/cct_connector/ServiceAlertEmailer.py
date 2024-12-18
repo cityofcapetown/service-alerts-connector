@@ -1,6 +1,7 @@
 import dataclasses
 import functools
 import hashlib
+import itertools
 import logging
 import pathlib
 import tempfile
@@ -59,7 +60,7 @@ class ServiceAlertEmailConfig(ServiceAlertOutputFileConfig):
         return filtered_df
 
 
-EMAIL_COLS = [ID_COL, "service_area", "title", "description",
+EMAIL_COLS = [ID_COL, "service_area", "title", "description", "status",
               "area_type", "area", "location",
               "inferred_wards", "inferred_suburbs", IMAGE_COL,
               "start_timestamp", "forecast_end_timestamp",
@@ -76,7 +77,6 @@ def _ward_curry_pot(ward_number: str) -> typing.Callable[[pandas.Series], bool]:
 
 
 def _service_area_curry_pot(service_area: str) -> typing.Callable[[pandas.Series], bool]:
-
     # creating curried filter function
     def _service_area_filter(row: pandas.Series) -> bool:
         return (row["service_area"] is not None and
@@ -602,7 +602,7 @@ SA_EMAIL_CONFIGS = [
                             (("Ald Rossouw", "shanen.rossouw@capetown.gov.za"),),
                             "all planned works that might affect Ward 110",
                             _ward_curry_pot("110")),
-    
+
     # Ward 115
     ServiceAlertEmailConfig("current", False, "v1", EMAIL_COLS,
                             (("Cllr McMahon", "Ian.McMahon@capetown.gov.za"),),
@@ -622,7 +622,7 @@ SA_EMAIL_CONFIGS = [
                             (("Cllr Philander", "Solomon.Philander@capetown.gov.za"),),
                             "all planned works that might affect Ward 116",
                             _ward_curry_pot("116")),
-    
+
     # Grassy Park
     ServiceAlertEmailConfig("current", False, "v1", EMAIL_COLS,
                             (("Rejane", "rejane.alexander@capetown.gov.za"),),
@@ -634,7 +634,7 @@ SA_EMAIL_CONFIGS = [
                             "all planned works that affect Grassy Park",
                             "(inferred_suburbs.astype('str').str.lower().str.contains('grassy\Wpark') or "
                             " area.astype('str').str.lower().str.contains('grassy\Wpark'))"),
-    
+
     # Somerset West
     ServiceAlertEmailConfig("current", False, "v1", EMAIL_COLS,
                             (("Delyno", "delyno.dutoit@capetown.gov.za"),),
@@ -778,16 +778,23 @@ class ServiceAlertEmailer(ServiceAlertBroadcaster):
                 alert_df = config.apply_additional_filter(alert_df)
 
                 for alert_dict in alert_df.to_dict(orient="records"):
-                    email_filename = f"{config_hash}_{alert_dict[ID_COL]}.html"
+                    legacy_email_filename = f"{config_hash}_{alert_dict[ID_COL]}.html"
+                    # new form of email filename incorporates the status
+                    lower_status = alert_dict['status'].lower().replace(" ", "-")
+                    email_filename = f"{config_hash}_{lower_status}_{alert_dict[ID_COL]}.html"
 
                     if alert_dict[TWEET_COL] is None:
                         logging.warning(f"Empty post - {alert_dict[ID_COL]}")
 
                     logging.debug("Checking if email has already been sent...")
                     skip_flag = False
-                    for _ in minio_utils.list_objects_in_bucket(self.minio_write_name,
-                                                                minio_prefix_override=email_filename):
-                        logging.warning(f"Skipping {alert_dict[ID_COL]} for this config - already sent!")
+                    for fn in itertools.chain(
+                            minio_utils.list_objects_in_bucket(self.minio_write_name,
+                                                               minio_prefix_override=email_filename),
+                            minio_utils.list_objects_in_bucket(self.minio_write_name,
+                                                               minio_prefix_override=legacy_email_filename)
+                    ):
+                        logging.warning(f"Skipping {alert_dict[ID_COL]} ({fn}) for this config - already sent!")
                         skip_flag = True
                         break
 
