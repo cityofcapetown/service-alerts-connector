@@ -71,8 +71,12 @@ def _clean_sa_df(data_df: pd.DataFrame) -> pd.DataFrame:
                         row["Description12"] and
                         row["Address_x0020_Location_x0020_2"][:len(row["Description12"])] !=
                         row["Description12"][:len(row["Address_x0020_Location_x0020_2"])]
+                ) else
+                # Using controlled address field
+                row["All_x0020_Location_x0020_Selected"] if (
+                    row["All_x0020_Location_x0020_Selected"]
                 ) else None
-            ),            axis=1
+            ), axis=1
         )
     }).assign(**{
         # fixing cases where the start and end timestamps roll over the day
