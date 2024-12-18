@@ -31,6 +31,7 @@ class ServiceAlertOutputFileConfig:
             f"coct-service_alerts-{time_str}-{planned_str}.json" if self.version == "v0" else
             f"v1/coct-service_alerts-{time_str}-{planned_str}.json" if self.version == "v1" else
             f"v1.1/service-alerts/{time_str}/{planned_str}" if self.version == "v1.1" else
+            f"v1.2/service-alerts/{time_str}/{planned_str}" if self.version == "v1.2" else
             None
         )
 
@@ -45,6 +46,7 @@ V0_COLS = [ID_COL, "service_area", "title", "description",
            "planned", "request_number", ]
 V1_COLS = V0_COLS + [TWEET_COL, TOOT_COL]
 V1_1_COLS = V1_COLS + ["area_type", GEOSPATIAL_COL]
+V1_2_COLS = V1_1_COLS + ["status"]
 
 BOK_CONFIGS = [
     ServiceAlertOutputFileConfig(time_window, planned, version, version_cols)
@@ -52,7 +54,8 @@ BOK_CONFIGS = [
     for planned in [True, False]
     for version, version_cols in (('v0', V0_COLS),
                                   ('v1', V1_COLS),
-                                  ('v1.1', V1_1_COLS))
+                                  ('v1.1', V1_1_COLS),
+                                  ('v1.2', V1_2_COLS),)
 ]
 
 EXPIRY_COL = 'expiry_date'
