@@ -28,7 +28,6 @@ DS_REPLY_TO = (
     "muhammed.ockards@capetown.gov.za",
 )
 RESOURCES_PATH = pathlib.Path(__file__).parent / ".." / "resources"
-ALERT_EMAIL_SUBJECT_PREFIX = "Service Alert"
 ALERT_EMAIL_TEMPLATE = "service_alert_tweet_emailer_template.html.jinja2"
 CITY_LOGO_FILENAME = "rect_city_logo.png"
 LINK_TEMPLATE = "https://ctapps.capetown.gov.za/sites/crhub/SitePages/ViewServiceAlert.aspx#?ID={alert_id}"
@@ -682,7 +681,11 @@ def _form_and_send_alerts_email(alert_dict: typing.Dict[str, typing.Any],
                                                         secrets["proxy"]["password"], )
 
         # Forming email message
-        email_subject = f"{ALERT_EMAIL_SUBJECT_PREFIX} - {alert_dict['title']} in {alert_dict['area']}"
+        if alert_dict.get("status", "Open")  == "Open":
+            email_subject = f"Service Alert - {alert_dict['title']} in {alert_dict['area']}"
+        else:
+            email_subject = f"Updated Service Alert - {alert_dict['title']} in {alert_dict['area']}"
+
         email_request_id = str(uuid.uuid4())
         email_date = pandas.Timestamp.now().isoformat()
         suggested_post = alert_dict[TWEET_COL]
