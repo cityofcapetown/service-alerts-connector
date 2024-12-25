@@ -67,6 +67,7 @@ AREA_LOOKUP = {
     "Solid Waste Regional Service Area": ("Solid Waste service areas", "AREA_NAME"),
     "Electricity Service Region": ("Electricity Districts", "District"),
     "Water Service Region": ("Water service region", "WTR_SRV_RGN_NAME"),
+    "Water Service region": ("Water service region", "WTR_SRV_RGN_NAME"),
     'Citywide': ('City boundary', 'CITY_NAME'),
 }
 AREA_INFERENCE_THRESHOLD = 0.05
