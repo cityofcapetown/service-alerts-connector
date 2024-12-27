@@ -548,7 +548,7 @@ class ServiceAlertAugmenter(ServiceAlertBase.ServiceAlertsBase):
         ):
             logging.debug(f"Adding {less_than_limit} entries from cache into main data")
             moving_from_cache = self.cache_data.loc[
-                self.cache_data[TWEET_COL].isna() or self.cache_data[TOOT_COL].isna(),
+                self.cache_data[TWEET_COL].isna() | self.cache_data[TOOT_COL].isna(),
                 self.data.columns
             ].sort_values(by=['publish_date']).tail(less_than_limit * 2).pipe(
                 lambda df: df.sample(min([df.shape[0], less_than_limit]))
