@@ -263,6 +263,7 @@ components:
           format: date-time
           description: Timestamp by when the issue that caused the alert is expected to be resolved.
           example: "2024-02-14T14:00:00.000Z"
+          nullable: true
         planned:
           type: boolean
           description: Whether the issue that caused the alert is part of routine maintenance or unexpected.
