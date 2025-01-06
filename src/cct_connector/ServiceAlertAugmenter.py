@@ -66,8 +66,8 @@ AREA_LOOKUP = {
     "Official Planning Suburb": ("Official planning suburbs", "OFC_SBRB_NAME"),
     "Solid Waste Regional Service Area": ("Solid Waste service areas", "AREA_NAME"),
     "Electricity Service Region": ("Electricity Districts", "District"),
-    "Water Service Region": ("Water service region", "WTR_SRV_RGN_NAME"),
-    "Water Service region": ("Water service region", "WTR_SRV_RGN_NAME"),
+    "Water Service Region": ("LDR.SL_WTNK_RGN_RTC_SYNC", "DSTR_NAME"),
+    "Water Service region": ("LDR.SL_WTNK_RGN_RTC_SYNC", "DSTR_NAME"),
     'Citywide': ('City boundary', 'CITY_NAME'),
 }
 AREA_INFERENCE_THRESHOLD = 0.05
@@ -95,7 +95,13 @@ def _load_gis_layer(area_type: str, layer_query: str or None = None):
         layer_name = area_type
 
     logging.debug(f"{area_type=}, {layer_name=}")
-    layer_gdf = mportal_utils.load_sdc_datasets(layer_name, return_gdf=True)
+    loader_func = mportal_utils.load_rgdb_table if layer_name.startswith("LDR") else mportal_utils.load_sdc_datasets
+
+    loader_kwargs = {"return_gdf": True}
+    if layer_name.startswith("LDR"):
+        loader_kwargs["db_name"] = "rgdb-mirror"
+
+    layer_gdf = loader_func(layer_name, **loader_kwargs)
 
     return layer_gdf.query(layer_query) if layer_query else layer_gdf
 
