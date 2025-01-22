@@ -65,7 +65,7 @@ AREA_LOOKUP = {
     "Official Plannig Suburb": ("Official planning suburbs", "OFC_SBRB_NAME"),
     "Official Planning Suburb": ("Official planning suburbs", "OFC_SBRB_NAME"),
     "Solid Waste Regional Service Area": ("Solid Waste service areas", "AREA_NAME"),
-    "Electricity Service Region": ("Electricity Districts", "District"),
+    "Electricity Service Region": ("Electricity Service Region", "ELCT_SRV_RGN_NAME"),
     "Water Service Region": ("LDR.SL_WTNK_RGN_RTC_SYNC", "DSTR_NAME"),
     "Water Service region": ("LDR.SL_WTNK_RGN_RTC_SYNC", "DSTR_NAME"),
     'Citywide': ('City boundary', 'CITY_NAME'),
