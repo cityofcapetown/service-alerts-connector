@@ -41,12 +41,12 @@ def _clean_sa_df(data_df: pd.DataFrame) -> pd.DataFrame:
         "duration": lambda df: df["expiry_date"] - df["publish_date"],
         # Munging times
         "start_time": lambda df: df["Start_x0020_Time"].apply(
-            lambda val: datetime.strptime(val.replace("60", "59") + "+02:00", "%H:%M%z")
+            lambda val: datetime.strptime(val.replace("60", "59").replace("Select...","00") + "+02:00", "%H:%M%z")
         ).dt.time,
         "forecast_end_time": lambda df: df["Forecast_x0020_End_x0020_Time"].apply(
             lambda val: (
                 datetime.strptime(
-                    val.replace("60", "59") + "+02:00", "%H:%M%z"
+                    val.replace("60", "59").replace("Select...","00") + "+02:00", "%H:%M%z"
                 ) if (pd.notna(val) and HM_RE.match(val)) else None
             )
         ),
