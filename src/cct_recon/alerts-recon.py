@@ -27,8 +27,11 @@ def lambda_handler(event, context):
 
     # Fetching old data from S3
     old_object_name = object_name + PREV_SUFFIX
-    old_service_alerts_response = s3.get_object(Bucket=bucket_name, Key=old_object_name)
-    old_service_alerts_data = json.load(old_service_alerts_response['Body'])
+    if 'Contents' in s3.list_objects(Bucket=bucket_name, Prefix=old_object_name):
+        old_service_alerts_response = s3.get_object(Bucket=bucket_name, Key=old_object_name)
+        old_service_alerts_data = json.load(old_service_alerts_response['Body'])
+    else:
+        old_service_alerts_data = []
 
     # Creating set of old ID-Status pairs
     old_ids = set([
