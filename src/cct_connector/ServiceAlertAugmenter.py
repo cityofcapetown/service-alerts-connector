@@ -40,7 +40,7 @@ from cct_connector import (
 PRIMARY_GPT_ENDPOINT = "https://api.openai.com/v1/chat/completions"
 PRIMARY_DRAFTING_MODEL = "gpt-4o-mini-2024-07-18"
 FALLBACK_ENDPOINT = "https://datascience.capetown.gov.za/cptgpt-dev/v1/chat/completions"
-FALLBACK_DRAFTING_MODEL = "llama3-8b-it-q5"
+FALLBACK_DRAFTING_MODEL = "llama3.2-3b-it-q6"
 DRAFT_LIMIT = 10
 PROMPT_LENGTH_LIMIT = 8192
 DRAFT_TIMEOUT = 120
