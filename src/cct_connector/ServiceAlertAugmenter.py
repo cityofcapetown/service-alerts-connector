@@ -58,6 +58,7 @@ SERVICE_AREA_HASHTAGS = {
     "Water Management": "#MeterManagement",
     "Events": "#Events",
     "City Health": "#CityHealth",
+    "Roads and Stormwater": "#RoadsAndStormwater",
 }
 
 AREA_TYPE_EXCLUSION_SET = {'Driving Licence Testing Centre', 'Driving License Testing Centre'}
