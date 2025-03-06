@@ -18,23 +18,28 @@ with kubernetes_dag.airflowK8sDAG("service-alerts-pipeline",
     fetch_data_operator = dag.get_dag_operator("fetch-service-alerts",
                                                "python3 cct_connector/ServiceAlertConnector.py",
                                                resources=kubernetes_dag.LIGHT_RESOURCES,
-                                               startup_timeout_seconds=600)
+                                               startup_timeout_seconds=600,
+                                               task_concurrency=1, )
     fix_data_operator = dag.get_dag_operator("fix-service-alerts",
                                              "python3 cct_connector/ServiceAlertFixer.py",
                                              resources=kubernetes_dag.LIGHT_RESOURCES,
-                                               startup_timeout_seconds=600)
+                                             startup_timeout_seconds=600,
+                                             task_concurrency=1, )
     augment_data_operator = dag.get_dag_operator("augment-service-alerts",
                                                  "python3 cct_connector/ServiceAlertAugmenter.py",
                                                  resources=kubernetes_dag.LIGHT_RESOURCES,
-                                               startup_timeout_seconds=600)
+                                                 startup_timeout_seconds=600,
+                                                 task_concurrency=1, )
     broadcast_data_operator = dag.get_dag_operator("broadcast-service-alerts",
                                                    "python3 cct_connector/ServiceAlertBroadcaster.py",
                                                    resources=kubernetes_dag.LIGHT_RESOURCES,
-                                               startup_timeout_seconds=600)
+                                                   startup_timeout_seconds=600,
+                                                   task_concurrency=1, )
     email_data_operator = dag.get_dag_operator("email-service-alerts",
                                                "python3 cct_connector/ServiceAlertEmailer.py",
                                                resources=kubernetes_dag.LIGHT_RESOURCES,
-                                               startup_timeout_seconds=600)
+                                               startup_timeout_seconds=600,
+                                               task_concurrency=1, )
 
     # Dependencies
     fetch_data_operator >> fix_data_operator >> augment_data_operator >> (broadcast_data_operator, email_data_operator)
