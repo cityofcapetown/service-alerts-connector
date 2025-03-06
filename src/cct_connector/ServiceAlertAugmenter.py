@@ -735,7 +735,7 @@ class ServiceAlertAugmenter(ServiceAlertBase.ServiceAlertsBase):
                 else:
                     # Getting relevant geometries for this record
                     intersecting_wards = ward_polygons.loc[
-                        ward_polygons.intersects(area_polygon)
+                        ward_polygons.intersects(shapely.make_valid(area_polygon))
                     ] if pandas.notna(area_polygon) else pandas.Series([])
 
                     def _location_generator():
