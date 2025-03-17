@@ -70,7 +70,8 @@ def _ward_curry_pot(ward_number: str) -> typing.Callable[[pandas.Series], bool]:
     # creating curried filter function
     def _ward_filter(row: pandas.Series) -> bool:
         return (row["inferred_wards"] is not None and
-                ward_number in row["inferred_wards"])
+                ward_number in row["inferred_wards"] and
+                row["area_type"] != "Citywide")
 
     return _ward_filter
 
