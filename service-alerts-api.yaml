@@ -113,7 +113,7 @@ paths:
     get:
       tags:
         - "v1.3"
-      deprecated: true
+      deprecated: false
       summary: list service alerts
       description: Get all service alerts, according to the parameters set with additional fields.
       parameters:
@@ -185,7 +185,7 @@ paths:
     get:
       tags:
         - "v1.3"
-      deprecated: true
+      deprecated: false
       summary: Get a specific service alert by ID
       description: Retrieve detailed information about a service alert by its unique ID
       parameters:
@@ -202,7 +202,7 @@ paths:
     get:
       tags:
         - "v1.3"
-      deprecated: true
+      deprecated: false
       summary: Get a rendered version of the footprint ID
       description: Retrieve an image of the area of effect footprint plotted on a cartographic map. From v1.3 onwards, each alert has an area of effect footprint ID associated with it. These may not be unique to the alert.
       parameters:
@@ -432,7 +432,7 @@ components:
               type: array
               items:
                 type: string
-                pattern: "^([1-9]|[1-9]\d|10\d|11[0-6])$"
+                pattern: "^([1-9]|[1-9]\\d|10\\d|11[0-6])$"
               description: List of City of Cape Town wards that are potentially affected by this alert. **NB** this is based upon the geospatial footprint which is a best effort approximation.
               example: "['1', '2', '5', '27', '105']"
             inferred_suburbs:
