@@ -15,7 +15,7 @@ import pandas
 import requests
 
 from cct_connector import (
-    TWEET_COL, IMAGE_COL,
+    TWEET_COL, FOOTPRINT_COL, SUMMARY_COL,
     SA_EMAIL_NAME
 )
 from cct_connector.ServiceAlertBroadcaster import ServiceAlertOutputFileConfig, ServiceAlertBroadcaster, V0_COLS, ID_COL
@@ -32,7 +32,7 @@ ALERT_EMAIL_TEMPLATE = "service_alert_tweet_emailer_template.html.jinja2"
 CITY_LOGO_FILENAME = "rect_city_logo.png"
 LINK_TEMPLATE = "https://ctapps.capetown.gov.za/sites/crhub/SitePages/ViewServiceAlert.aspx#?ID={alert_id}"
 AREA_IMAGE_FILENAME = "area_image_filename.png"
-IMAGE_LINK_TEMPLATE = "https://lake.capetown.gov.za/service-alerts.maps/{image_filename}"
+IMAGE_LINK_TEMPLATE = "https://lake.capetown.gov.za/service-alerts.maps/{image_filename}.png"
 EMAIL_LINK_TEMPLATE = "https://lake.capetown.gov.za/service-alerts.service-alerts-emails/{email_filename}"
 
 
@@ -687,11 +687,12 @@ def _form_and_send_alerts_email(alert_dict: typing.Dict[str, typing.Any],
     secrets = secrets_utils.get_secrets()
 
     with proxy_utils.set_env_http_proxy():
-        account = exchange_utils.setup_exchange_account(exchange_email="data.science@capetown.gov.za")
+        account = exchange_utils.setup_exchange_account(secrets["proxy"]["username"],
+                                                        secrets["proxy"]["password"], )
 
         # Forming email message
-        if alert_dict.get("status", "Open")  == "Open":
-            email_subject = f"Service Alert - {alert_dict['title']} in {alert_dict['area']}"
+        if alert_dict.get("status", "Open") == "Open":
+            email_subject = f"New Service Alert - {alert_dict['title']} in {alert_dict['area']}"
         else:
             email_subject = f"Updated Service Alert - {alert_dict['title']} in {alert_dict['area']}"
 
@@ -700,13 +701,13 @@ def _form_and_send_alerts_email(alert_dict: typing.Dict[str, typing.Any],
         suggested_post = alert_dict[TWEET_COL]
         link_str = LINK_TEMPLATE.format(alert_id=alert_dict[ID_COL])
         image_link_str = (
-            IMAGE_LINK_TEMPLATE.format(image_filename=alert_dict[IMAGE_COL])
-            if alert_dict[IMAGE_COL] is not None
+            IMAGE_LINK_TEMPLATE.format(image_filename=alert_dict[FOOTPRINT_COL])
+            if alert_dict[FOOTPRINT_COL] is not None
             else None
         )
 
         # removing null fields and tweet col for email generation
-        fields_to_delete = [TWEET_COL, IMAGE_COL]
+        fields_to_delete = [TWEET_COL, FOOTPRINT_COL, SUMMARY_COL]
         for k, v in alert_dict.items():
             if not isinstance(v, typing.Collection) and pandas.isna(v):
                 fields_to_delete += [k]
