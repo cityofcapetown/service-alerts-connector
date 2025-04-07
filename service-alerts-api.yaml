@@ -2,7 +2,7 @@ openapi: 3.1.0
 info:
   title: Service Alerts API
   description: Data API for service outage alerts. Hosted in the cloud, behind a CDN, so feel free to query as frequently as required.
-  version: 1.2.0
+  version: 1.3.0
   contact:
     name: Gordon Inggs
     email: gordon.inggs@capetown.gov.za
@@ -21,6 +21,8 @@ tags:
     description: "Minor increment of second version of API. Mostly adds geospatial related fields."
   - name: "v1.2"
     description: "Minor increment of third version of API. Adds fields relating to Alert Status."
+  - name: "v1.3"
+    description: "Minor increment of fourth version of API. Mostly adding fields to facilitating use of API in push workflows. Also simplifications of available fields."
 
 paths:
   /coct-service_alerts-{timeFrame}-{planned}.json:
@@ -90,6 +92,7 @@ paths:
     get:
       tags:
         - "v1.2"
+      deprecated: true
       summary: list service alerts
       description: Get all service alerts, according to the parameters set with additional status field.
       parameters:
@@ -106,6 +109,27 @@ paths:
                 type: array
                 items:
                   $ref: '#/components/schemas/ServiceAlertV1.2'
+  /v1.3/service-alerts/{timeFrame}/{planned}:
+    get:
+      tags:
+        - "v1.3"
+      deprecated: true
+      summary: list service alerts
+      description: Get all service alerts, according to the parameters set with additional fields.
+      parameters:
+        - $ref: '#/components/parameters/timeFrame'
+          name: timeFrame
+        - $ref: '#/components/parameters/planned'
+          name: planned
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ServiceAlertV1.3'
   /alerts/{alertId}.json:
     get:
       tags:
@@ -144,7 +168,7 @@ paths:
     get:
       tags:
         - "v1.2"
-      deprecated: false
+      deprecated: true
       summary: Get a specific service alert by ID
       description: Retrieve detailed information about a service alert by its unique ID
       parameters:
@@ -157,6 +181,40 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ServiceAlertV1.2'
+  /v1.3/service-alert/{alert_id}:
+    get:
+      tags:
+        - "v1.3"
+      deprecated: true
+      summary: Get a specific service alert by ID
+      description: Retrieve detailed information about a service alert by its unique ID
+      parameters:
+        - name: alertId
+          $ref: '#/components/parameters/alertId'
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ServiceAlertV1.3'
+  /v1.3/footprint-map/{footprintId}:
+    get:
+      tags:
+        - "v1.3"
+      deprecated: true
+      summary: Get a rendered version of the footprint ID
+      description: Retrieve an image of the area of effect footprint plotted on a cartographic map. From v1.3 onwards, each alert has an area of effect footprint ID associated with it. These may not be unique to the alert.
+      parameters:
+        - name: alertId
+          $ref: '#/components/parameters/footprintId'
+      responses:
+        '200':
+          description: Successful response
+          content:
+            image/png:
+              schema:
+                type: binary
 components:
   parameters:
     timeFrame:
@@ -184,6 +242,12 @@ components:
       required: true
       schema:
         type: integer
+    footprintId:
+      in: path
+      description: ID of an area of effect footprint
+      required: true
+      schema:
+        type: string
   schemas:
     ServiceAlertV0:
       type: object
@@ -324,3 +388,56 @@ components:
                 - Crew on Site
                 - Issue Resolved
                 - Closed
+    ServiceAlertV1.3:
+      allOf:
+        - $ref: '#/components/schemas/ServiceAlertV0'
+        - type: object
+          properties:
+            summary:
+              type: string
+              description: 280 character or less summary of the service alert, formatted with social media in mind. Generated using OpenAI 4o-mini LLM. Called "tweet_text" in earlier versions of the API.
+              example: " 🚧Burst Pipe🚧\n📍Pinoak Avenue, Vredehoek\n⏰Feb 14, 6:35 PM - Feb 15, 12:35 AM\nUnexpected water outage due to burst pipe. For assistance, use request number 9116664427 when contacting the City."
+            status:
+              type: string
+              nullable: false
+              description: Current status of the alert, giving an indication of progress towards addressing the issue.
+              example: "Open"
+              enum:
+                - Open
+                - Assigned
+                - Crew on Site
+                - Issue Resolved
+                - Closed
+            area_type:
+              type: string
+              nullable: true
+              description: Type of geographic area described by area field. In some instances, this value indicates a GIS dataset on the City's Open Data Portal that can be used to look up the geospatial area described.
+              example: "Official Planning Suburb"
+              enum:
+                - Official Planning Suburb
+                - Solid Waste Regional Service Area
+                - Citywide
+                - Driving License Testing Centre
+                - Electricity Service Region
+                - Water Service Region
+            geospatial_footprint:
+              type: string
+              description: Best effort geospatial location of the issue, based upon the contents of the area_type, area and location fields. Provided in Well-Known Text (WKT), ISO/IEC 13249-3:2016 compliant format, using the EPSG 4326 CRS.
+              example: "POLYGON ((18.550986 -33.866492, 18.550989 -33.866483, 18.550993 -33.866475, 18.550997 -33.866467, 18.551003 -33.866459, 18.551008 -33.866452, 18.551015 -33.866445, 18.551022 -33.866439, 18.551187 -33.866313, 18.551231 -33.866280, 18.551239 -33.866275, 18.551248 -33.866270, 18.551257 -33.866266, 18.551266 -33.866263, 18.551276 -33.866261, 18.551285 -33.866260, 18.551295 -33.866260, 18.551305 -33.866261, 18.551315 -33.866262, 18.551324 -33.866265, 18.551333 -33.866269, 18.551342 -33.866273, 18.551350 -33.866279, 18.551358 -33.866285, 18.551365 -33.866292, 18.551371 -33.866299, 18.551377 -33.866307, 18.551382 -33.866316, 18.551385 -33.866325, 18.551388 -33.866334, 18.551390 -33.866344, 18.551392 -33.866353, 18.551392 -33.866363, 18.551391 -33.866373, 18.551389 -33.866383, 18.551386 -33.866392, 18.551383 -33.866401, 18.551378 -33.866410, 18.551373 -33.866418, 18.551367 -33.866426, 18.551360 -33.866433, 18.551352 -33.866439, 18.551309 -33.866473, 18.551170 -33.866578, 18.551152 -33.866642, 18.551149 -33.866651, 18.551145 -33.866660, 18.551141 -33.866669, 18.551135 -33.866677, 18.551129 -33.866684, 18.551121 -33.866691, 18.551114 -33.866697, 18.551105 -33.866702, 18.551097 -33.866707, 18.551088 -33.866710, 18.551078 -33.866713, 18.551068 -33.866715, 18.551059 -33.866715, 18.551049 -33.866715, 18.551039 -33.866714, 18.551030 -33.866712, 18.551020 -33.866709, 18.551011 -33.866705, 18.551003 -33.866700, 18.550995 -33.866694, 18.550987 -33.866688, 18.550980 -33.866681, 18.550974 -33.866673, 18.550969 -33.866665, 18.550965 -33.866656, 18.550961 -33.866647, 18.550959 -33.866637, 18.550957 -33.866628, 18.550956 -33.866618, 18.550956 -33.866608, 18.550958 -33.866598, 18.550960 -33.866589, 18.550986 -33.866492))"
+            footprint_id:
+              type: string
+              description: ID of geospatial area of effect associated with this alert, based on best effort geospatial location. **NB** This may not be unique to a particular alert, i.e. IDs may be reused across alerts if the area of the effect is the same.
+              example: "1e2d420e9343136b722079b26e1ca7509cb01ebb626743b04a18983457c2da43"
+            inferred_wards:
+              type: array
+              items:
+                type: string
+                pattern: "^([1-9]|[1-9]\d|10\d|11[0-6])$"
+              description: List of City of Cape Town wards that are potentially affected by this alert. **NB** this is based upon the geospatial footprint which is a best effort approximation.
+              example: "['1', '2', '5', '27', '105']"
+            inferred_suburbs:
+              type: array
+              items:
+                type: string
+              description: List of official planning suburbs that are potentially affected by this alert. **NB** this is based upon the geospatial footprint which is a best effort approximation.
+              example: "['KLIPKOP', 'LANGA']"
