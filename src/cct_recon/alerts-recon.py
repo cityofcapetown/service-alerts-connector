@@ -10,7 +10,7 @@ V1_2_ALERTS_PREFIX = 'v1.2/service-alert/'
 SNS_ARN = "arn:aws:sns:af-south-1:566800947500:service-alerts"
 
 s3 = boto3.client('s3')
-sns = boto3.client('sns')
+# sns = boto3.client('sns')
 
 
 def lambda_handler(event, context):
@@ -86,13 +86,13 @@ def lambda_handler(event, context):
     ]
 
     # Publishing new service alerts to SNS
-    if len(new_service_alert_ids):
-        print("Publishing to SNS!")
-        response = sns.publish(
-            TopicArn=SNS_ARN,
-            Subject=f"New or updated Service Alerts!",
-            Message=json.dumps(new_service_alert_ids)
-        )
+    # if len(new_service_alert_ids):
+    #     print("Publishing to SNS!")
+    #     response = sns.publish(
+    #         TopicArn=SNS_ARN,
+    #         Subject=f"New or updated Service Alerts!",
+    #         Message=json.dumps(new_service_alert_ids)
+    #     )
 
     # Creating stripped down version of service alerts list for dedupping
     current_service_alerts = [
