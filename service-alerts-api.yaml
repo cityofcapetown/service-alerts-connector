@@ -198,7 +198,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ServiceAlertV1.3'
-  /v1.3/footprint-map/{footprintId}:
+  /v1.3/footprint-map/{footprint_id}:
     get:
       tags:
         - "v1.3"
@@ -206,7 +206,7 @@ paths:
       summary: Get a rendered version of the footprint ID
       description: Retrieve an image of the area of effect footprint plotted on a cartographic map. From v1.3 onwards, each alert has an area of effect footprint ID associated with it. These may not be unique to the alert.
       parameters:
-        - name: alertId
+        - name: footprint_id
           $ref: '#/components/parameters/footprintId'
       responses:
         '200':
