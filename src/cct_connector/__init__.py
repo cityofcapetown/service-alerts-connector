@@ -26,4 +26,4 @@ SUMMARY_COL = "summary"
 
 # Output Data
 SERVICE_ALERTS_S3_BUCKET = "coct-service-alerts"
-
+IMAGE_LINK_TEMPLATE = "https://lake.capetown.gov.za/service-alerts.maps/{image_filename}.png"

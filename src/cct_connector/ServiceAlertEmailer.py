@@ -16,9 +16,9 @@ import requests
 
 from cct_connector import (
     TWEET_COL, FOOTPRINT_COL, SUMMARY_COL,
-    SA_EMAIL_NAME
+    SA_EMAIL_NAME, IMAGE_LINK_TEMPLATE
 )
-from cct_connector.ServiceAlertBroadcaster import ServiceAlertOutputFileConfig, ServiceAlertBroadcaster, V0_COLS, ID_COL
+from cct_connector.ServiceAlertBroadcaster import ServiceAlertOutputFileConfig, ServiceAlertBroadcaster, ID_COL
 
 DS_REPLY_TO = (
     "gordon.inggs@capetown.gov.za",
@@ -32,7 +32,6 @@ ALERT_EMAIL_TEMPLATE = "service_alert_tweet_emailer_template.html.jinja2"
 CITY_LOGO_FILENAME = "rect_city_logo.png"
 LINK_TEMPLATE = "https://ctapps.capetown.gov.za/sites/crhub/SitePages/ViewServiceAlert.aspx#?ID={alert_id}"
 AREA_IMAGE_FILENAME = "area_image_filename.png"
-IMAGE_LINK_TEMPLATE = "https://lake.capetown.gov.za/service-alerts.maps/{image_filename}.png"
 EMAIL_LINK_TEMPLATE = "https://lake.capetown.gov.za/service-alerts.service-alerts-emails/{email_filename}"
 
 
@@ -61,7 +60,7 @@ class ServiceAlertEmailConfig(ServiceAlertOutputFileConfig):
 
 EMAIL_COLS = [ID_COL, "service_area", "title", "description", "status",
               "area_type", "area", "location",
-              "inferred_wards", "inferred_suburbs", IMAGE_COL,
+              "inferred_wards", "inferred_suburbs", FOOTPRINT_COL,
               "start_timestamp", "forecast_end_timestamp",
               "planned", "request_number", TWEET_COL]
 
