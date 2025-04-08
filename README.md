@@ -11,12 +11,12 @@ information about the delivery of services that is both timely **and** useful.
 ### 🔗 Links
 Adapted from [this links doc](https://gist.github.com/Gordonei/947ff2ae93b8a7983594244053724161), these are the live 
 links to the various alerts:
-* [Current Unplanned Outages](https://service-alerts.cct-datascience.xyz/v1.2/service-alerts/current/unplanned)
-* [Current Planned outages](https://service-alerts.cct-datascience.xyz/v1.2/service-alerts/current/planned)
-* [Unplanned outages from the last 7 days](https://service-alerts.cct-datascience.xyz/v1.2/service-alerts/7days/unplanned)
-* [Planned outages from the last 7 days](https://service-alerts.cct-datascience.xyz/v1.2/service-alerts/7days/planned)
-* [All unplanned outages](https://service-alerts.cct-datascience.xyz/v1.2/service-alerts/all/unplanned)
-* [All planned outages](https://service-alerts.cct-datascience.xyz/v1.2/service-alerts/all/planned)
+* [Current Unplanned Outages](https://service-alerts.cct-datascience.xyz/v1.3/service-alerts/current/unplanned)
+* [Current Planned outages](https://service-alerts.cct-datascience.xyz/v1.3/service-alerts/current/planned)
+* [Unplanned outages from the last 7 days](https://service-alerts.cct-datascience.xyz/v1.3/service-alerts/7days/unplanned)
+* [Planned outages from the last 7 days](https://service-alerts.cct-datascience.xyz/v1.3/service-alerts/7days/planned)
+* [All unplanned outages](https://service-alerts.cct-datascience.xyz/v1.3/service-alerts/all/unplanned)
+* [All planned outages](https://service-alerts.cct-datascience.xyz/v1.3/service-alerts/all/planned)
 
 ### 🏗️ Generating Client Libraries from the API Specification
 
@@ -44,11 +44,15 @@ $ PYTHONPATH=./dist/python python3 bin/api_example_script.py
  ServiceAlertV1(id=23118, service_area='Refuse', title='Refuse delays', description='Please leave bin out until 21:00\nIf not serviced\ntake bin onto property and place out by 06:30 the following day', area='Area South Collections', location='Backlog Suburbs in Progress: Delayed Suburbs: Wednesday, 14 February 2024 Comment\n\uf0b7 Lmhoffs Gift\n\uf0b7 Blue Water Estate\n\uf0b7 Kommetjie\n\uf0b7 Glencairn Heights\n\uf0b7 Grassy Park\n\uf0b7 Zeekoevlei\n\uf0b7 Rocklands\n\uf0b7 Oceanview\n\n\n\n', publish_date='2024-02-13T22:00:00.000Z', effective_date='2024-02-13T22:00:00.000Z', expiry_date='2024-02-15T22:00:00.000Z', start_timestamp='2024-02-14T04:00:00.000Z', forecast_end_timestamp='2024-02-15T19:00:00.000Z', planned=False, request_number=None, tweet_text=' 🚮 Refuse Delays 🚮\n📍Area South Collections\n⏰Feb 14, 6:00 AM - Feb 15, 9:00 PM\nDue to backlog, please leave bin out until 9 PM if not serviced. If still not collected by 6:30 AM next day, take bin onto property & place out again.', toot_text=' 🚮 Refuse Delays 🚮\n📍Area South Collections\n⏰Feb 14, 6:00 AM - Feb 15, 9:00 PM\nDue to backlog, refuse collection may be delayed in these areas. Please leave bin out until 9 PM. If not serviced, take bin onto property & place out by 6:30 AM next day.\n#CapeTown #Refuse')]
 ```
 
-### ✉️ PubSub
+## ✉️ PubSub
 We also maintain an [AWS SNS](https://aws.amazon.com/sns/) topic: `arn:aws:sns:af-south-1:566800947500:service-alerts`
 
-The topic publishes whenever there are new alert(s) created. The content of the message will be a JSON array containing 
-the contents of the alerts.
+The topic publishes whenever there are new alert(s) created or the status of an alert has changed. The content of the 
+message will be a JSON array containing the ID of the alerts.
+
+## Geospatial Footprints
+
+
 
 ---
 
