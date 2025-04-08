@@ -84,6 +84,7 @@ def _service_area_curry_pot(service_area: str) -> typing.Callable[[pandas.Series
     return _service_area_filter
 
 
+# ToDo move these to a YAML config
 SA_EMAIL_CONFIGS = [
     # All Alerts
     # Debugging
@@ -686,8 +687,7 @@ def _form_and_send_alerts_email(alert_dict: typing.Dict[str, typing.Any],
     secrets = secrets_utils.get_secrets()
 
     with proxy_utils.set_env_http_proxy():
-        account = exchange_utils.setup_exchange_account(secrets["proxy"]["username"],
-                                                        secrets["proxy"]["password"], )
+        account = exchange_utils.setup_exchange_account(exchange_email="data.science@capetown.gov.za")
 
         # Forming email message
         if alert_dict.get("status", "Open") == "Open":
