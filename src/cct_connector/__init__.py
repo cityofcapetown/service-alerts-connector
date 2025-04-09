@@ -20,9 +20,10 @@ CHECKSUM_COLUMN = "InputChecksum"
 TWEET_COL = "tweet_text"
 TOOT_COL = "toot_text"
 ID_COL = "Id"
-IMAGE_COL = "image_filename"
+FOOTPRINT_COL = "footprint_id"
 GEOSPATIAL_COL = "geospatial_footprint"
+SUMMARY_COL = "summary"
 
 # Output Data
 SERVICE_ALERTS_S3_BUCKET = "coct-service-alerts"
-
+IMAGE_LINK_TEMPLATE = "https://lake.capetown.gov.za/service-alerts.maps/{image_filename}.png"
