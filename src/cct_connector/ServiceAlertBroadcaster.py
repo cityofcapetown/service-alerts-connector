@@ -4,13 +4,13 @@ import pathlib
 import typing
 
 import boto3.session
-from db_utils import minio_utils, proxy_utils, secrets_utils
+from db_utils import minio_utils, proxy_utils, trino_utils, secrets_utils
 import pandas as pd
 import requests
 
 from cct_connector import ServiceAlertBase
 from cct_connector import (
-    AUGMENTED_SA_NAME, SERVICE_ALERTS_S3_BUCKET,
+    AUGMENTED_SA_NAME, SERVICE_ALERTS_S3_BUCKET, LATEST_PREFIX, TRINO_DATASET,
     ID_COL, TWEET_COL, TOOT_COL, SUMMARY_COL,
     GEOSPATIAL_COL, FOOTPRINT_COL,
     IMAGE_LINK_TEMPLATE
@@ -154,6 +154,12 @@ class ServiceAlertBroadcaster(ServiceAlertBase.ServiceAlertsBase):
                         footprint_path = footprint_prefix_path / record[FOOTPRINT_COL]
                         _copy_footprint_image_to_s3(footprint_path, bucket, http)
 
+    def sync_to_trino(self):
+        trino_utils.minio_to_trino(self.minio_read_name, LATEST_PREFIX,
+                                   TRINO_DATASET,
+                                   minio_exclude_cols=["inferred_suburbs", "inferred_wards"],
+                                   object_based_connector=True)
+
 if __name__ == "__main__":
     logging.basicConfig(level=logging.DEBUG,
                         format='%(asctime)s-%(module)s.%(funcName)s [%(levelname)s]: %(message)s')
@@ -161,6 +167,10 @@ if __name__ == "__main__":
     logging.info("G[etting] data from Minio...")
     sa_broadcaster = ServiceAlertBroadcaster()
     logging.info("...G[ot] data from Minio")
+
+    logging.info("Sync[ing] to Trino")
+    sa_broadcaster.sync_to_trino()
+    logging.info("Sync[ed] to Trino")
 
     logging.info("Wr[iting] to S3")
     sa_broadcaster.write_to_s3()
