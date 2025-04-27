@@ -7,6 +7,7 @@ RAW_SA_NAME = f"{SERVICE_ALERTS_PREFIX}.service-alerts"
 FIXED_SA_NAME = f"{SERVICE_ALERTS_PREFIX}.sanitised-service-alerts"
 AUGMENTED_SA_NAME = f"{SERVICE_ALERTS_PREFIX}.augmented-service-alerts"
 SA_EMAIL_NAME = f"{SERVICE_ALERTS_PREFIX}.service-alerts-emails"
+PHONE_NUMBER_LOOKUP_NAME = f"{SERVICE_ALERTS_PREFIX}.phone-number-lookup"
 
 # Other datasets
 FIXED_SN_MINIO_NAME = "sap-r3-connector.sanitised-service-notifications"
@@ -14,6 +15,7 @@ FIXED_SN_MINIO_NAME = "sap-r3-connector.sanitised-service-notifications"
 # Other misc data constants
 LATEST_PREFIX = "current/"
 AUGMENTER_SALT = "service-alert-augmenter-2024-03-21T02:30"
+PHONE_NUMBER_LOOKUP_FILE = "phone-number-lookup.json"
 
 # Dataset columns
 CHECKSUM_COLUMN = "InputChecksum"

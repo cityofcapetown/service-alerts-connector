@@ -2,6 +2,7 @@ import dataclasses
 import functools
 import hashlib
 import itertools
+import json
 import logging
 import pathlib
 import tempfile
@@ -16,7 +17,8 @@ import requests
 
 from cct_connector import (
     TWEET_COL, FOOTPRINT_COL, SUMMARY_COL,
-    SA_EMAIL_NAME, IMAGE_LINK_TEMPLATE
+    SA_EMAIL_NAME, PHONE_NUMBER_LOOKUP_NAME, PHONE_NUMBER_LOOKUP_FILE,
+    IMAGE_LINK_TEMPLATE
 )
 from cct_connector.ServiceAlertBroadcaster import ServiceAlertOutputFileConfig, ServiceAlertBroadcaster, ID_COL
 
@@ -33,6 +35,11 @@ CITY_LOGO_FILENAME = "rect_city_logo.png"
 LINK_TEMPLATE = "https://ctapps.capetown.gov.za/sites/crhub/SitePages/ViewServiceAlert.aspx#?ID={alert_id}"
 AREA_IMAGE_FILENAME = "area_image_filename.png"
 EMAIL_LINK_TEMPLATE = "https://lake.capetown.gov.za/service-alerts.service-alerts-emails/{email_filename}"
+FOOTPRINT_IMAGE_TEMPLATE = "https://service-alerts.cct-datascience.xyz/v1.3/footprint-map/{footprint_id}"
+
+TURNIO_ENDPOINT = "https://whatsapp.turn.io/v1/messages"
+TURNIO_NAMESPACE = "e737adae_bb1f_4551_a15b_e70bf7011942"
+TURNIO_TEMPLATE = "city_alerts_v1"
 
 
 @dataclasses.dataclass
@@ -773,11 +780,75 @@ def _form_and_send_alerts_email(alert_dict: typing.Dict[str, typing.Any],
         return message_body
 
 
+@functools.lru_cache()
+def _load_phone_number_lookup() -> typing.Dict[str, typing.List[str]]:
+    with tempfile.TemporaryDirectory() as tempdir:
+        phone_number_lookup_filename = pathlib.Path(tempdir) / PHONE_NUMBER_LOOKUP_FILE
+        minio_utils.minio_to_file(str(phone_number_lookup_filename), PHONE_NUMBER_LOOKUP_NAME)
+
+        with open(phone_number_lookup_filename) as phone_number_lookup_file:
+            phone_number_lookup = json.load(phone_number_lookup_file)
+
+    return phone_number_lookup
+
+
+def _form_and_send_whatsapp_messages(alert_dict: typing.Dict[str, typing.Any],
+                                     phone_numbers: typing.List[str],
+                                     http_session: requests.Session):
+    secrets = secrets_utils.get_secrets()
+    bearer_token = secrets["turnio"]["bearer_token"]
+    auth_header = {"Authorization": f"Bearer {bearer_token}"}
+
+    title_str = f"{alert_dict['title']} in {alert_dict['area']}"
+    title_str = title_str.strip().replace("\n", " | ")
+    location_str = alert_dict['location'] if alert_dict['location'] else alert_dict['area']
+    location_str = location_str.strip().replace("\n", " | ")
+
+    whatsapp_dict = {
+        "type": "template",
+        "template": {
+            "namespace": TURNIO_NAMESPACE,
+            "name": "city_alerts_v1",
+            "language": {
+                "code": "en", "policy": "deterministic"},
+            "components": [
+                {"type": "header",
+                 "parameters": [
+                     {"type": "image",
+                      "image": {
+                          "link": FOOTPRINT_IMAGE_TEMPLATE.format(footprint_id=alert_dict[FOOTPRINT_COL]),
+                      }}
+                 ]},
+                {"type": "body",
+                 "parameters": [
+                     {"type": "text",
+                      "text": title_str},  # Title
+                     {"type": "text",
+                      "text": location_str},  # Location
+                     {"type": "text",
+                      "text": f"{alert_dict['start_timestamp'].strftime('%Y-%m-%d %H:%M')}"},  # Date
+                     {"type": "text",
+                      "text": alert_dict[TWEET_COL].replace("\n", " | ").replace("    ", " ")}
+                 ]}
+            ]
+        }
+    }
+
+    for phone_number in phone_numbers:
+        whatsapp_dict["to"] = phone_number
+
+        resp = http_session.post(TURNIO_ENDPOINT,
+                                 json=whatsapp_dict, headers=auth_header)
+        resp.raise_for_status()
+
+
 class ServiceAlertEmailer(ServiceAlertBroadcaster):
     def __init__(self, minio_write_name=SA_EMAIL_NAME):
         super().__init__(minio_write_name=minio_write_name)
 
-    def send_alert_emails(self):
+    def send_alert_comms(self):
+        phone_number_dict = _load_phone_number_lookup()
+
         with proxy_utils.setup_http_session() as http:
             for config, (*_, alert_df) in zip(SA_EMAIL_CONFIGS,
                                               self._service_alerts_generator(SA_EMAIL_CONFIGS)):
@@ -817,11 +888,11 @@ class ServiceAlertEmailer(ServiceAlertBroadcaster):
                                                                 config.receivers,
                                                                 http)
 
-                    logging.debug("Backing up email")
-                    with tempfile.TemporaryDirectory() as tempdir:
-                        local_path = pathlib.Path(tempdir) / email_filename
-                        with open(local_path, "w") as local_file:
-                            local_file.write(email_message)
+                    # Iterating over receivers, and sending whatsapps, too
+                    for (_, email_address) in config.receivers:
+                        if email_address in phone_number_dict:
+                            logging.debug(f"Found phone number(s) for {email_address}, sending...")
+                            _form_and_send_whatsapp_messages(alert_dict, phone_number_dict[email_address], http)
 
                         minio_utils.file_to_minio(local_path, self.minio_write_name)
 
