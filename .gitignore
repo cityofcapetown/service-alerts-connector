@@ -1,3 +1,4 @@
 /dist/
 /src/resources/service-alerts-connector-secrets.json
 /src/resources/service-alerts-connector-secrets.yaml
+/src/resources/phone-number-lookup.json

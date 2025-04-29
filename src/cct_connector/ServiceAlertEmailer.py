@@ -103,6 +103,22 @@ SA_EMAIL_CONFIGS = [
                             (("Gordon", "gordon.inggs@capetown.gov.za"),),
                             "all planned alerts",
                             None),
+    ServiceAlertEmailConfig("current", False, "v1", EMAIL_COLS,
+                            (("Pia", "pia@turn.io"),),
+                            "all unplanned alerts",
+                            None),
+    ServiceAlertEmailConfig("current", True, "v1", EMAIL_COLS,
+                            (("Pia", "pia@turn.io"),),
+                            "all planned alerts",
+                            None),
+    ServiceAlertEmailConfig("current", False, "v1", EMAIL_COLS,
+                            (("Wim", "wim.louw@capetown.gov.za"),),
+                            "all unplanned alerts",
+                            None),
+    ServiceAlertEmailConfig("current", True, "v1", EMAIL_COLS,
+                            (("Wim", "wim.louw@capetown.gov.za"),),
+                            "all planned alerts",
+                            None),
     # Social Media
     ServiceAlertEmailConfig("current", False, "v1", EMAIL_COLS,
                             (("Social Media Team", "social.media@capetown.gov.za"),),
@@ -714,7 +730,7 @@ def _form_and_send_alerts_email(alert_dict: typing.Dict[str, typing.Any],
 
         # removing null fields and tweet col for email generation
         fields_to_delete = [TWEET_COL, FOOTPRINT_COL, SUMMARY_COL]
-        for k, v in alert_dict.items():
+        for k, v in email_dict.items():
             if not isinstance(v, typing.Collection) and pandas.isna(v):
                 fields_to_delete += [k]
             elif isinstance(v, typing.Collection) and all(map(pandas.isna, v)):
