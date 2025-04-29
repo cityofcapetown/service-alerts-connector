@@ -799,16 +799,18 @@ def _form_and_send_whatsapp_messages(alert_dict: typing.Dict[str, typing.Any],
     bearer_token = secrets["turnio"]["bearer_token"]
     auth_header = {"Authorization": f"Bearer {bearer_token}"}
 
-    title_str = f"{alert_dict['title']} in {alert_dict['area']}"
-    title_str = title_str.strip().replace("\n", " | ")
-    location_str = alert_dict['location'] if alert_dict['location'] else alert_dict['area']
-    location_str = location_str.strip().replace("\n", " | ")
+    update_str = "a new" if alert_dict.get("status", "Open") == "Open" else "an update on an existing"
+    image_url = (
+        FOOTPRINT_IMAGE_TEMPLATE.format(footprint_id=alert_dict[FOOTPRINT_COL]) if alert_dict.get(FOOTPRINT_COL, None) is not None
+        else "https://resource.capetown.gov.za/Style%20Library/Images/coct-logo@2x.png"
+    )
+    summary_str = alert_dict[TWEET_COL].replace("\n", " | ").replace("    ", " ")
 
     whatsapp_dict = {
         "type": "template",
         "template": {
             "namespace": TURNIO_NAMESPACE,
-            "name": "city_alerts_v1",
+            "name": "coct_alerts_v2",
             "language": {
                 "code": "en", "policy": "deterministic"},
             "components": [
@@ -816,19 +818,15 @@ def _form_and_send_whatsapp_messages(alert_dict: typing.Dict[str, typing.Any],
                  "parameters": [
                      {"type": "image",
                       "image": {
-                          "link": FOOTPRINT_IMAGE_TEMPLATE.format(footprint_id=alert_dict[FOOTPRINT_COL]),
+                          "link": image_url,
                       }}
                  ]},
                 {"type": "body",
                  "parameters": [
                      {"type": "text",
-                      "text": title_str},  # Title
+                      "text": update_str},
                      {"type": "text",
-                      "text": location_str},  # Location
-                     {"type": "text",
-                      "text": f"{alert_dict['start_timestamp'].strftime('%Y-%m-%d %H:%M')}"},  # Date
-                     {"type": "text",
-                      "text": alert_dict[TWEET_COL].replace("\n", " | ").replace("    ", " ")}
+                      "text": summary_str},
                  ]}
             ]
         }
