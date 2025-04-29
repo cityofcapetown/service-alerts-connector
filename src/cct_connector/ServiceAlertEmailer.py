@@ -1,4 +1,5 @@
 import base64
+import contextlib
 import copy
 import dataclasses
 import functools
@@ -819,7 +820,8 @@ def _form_and_send_whatsapp_messages(alert_dict: typing.Dict[str, typing.Any],
 
     update_str = "a new" if alert_dict.get("status", "Open") == "Open" else "an update on an existing"
     image_url = (
-        FOOTPRINT_IMAGE_TEMPLATE.format(footprint_id=alert_dict[FOOTPRINT_COL]) if alert_dict.get(FOOTPRINT_COL, None) is not None
+        FOOTPRINT_IMAGE_TEMPLATE.format(footprint_id=alert_dict[FOOTPRINT_COL]) if alert_dict.get(FOOTPRINT_COL,
+                                                                                                  None) is not None
         else "https://resource.capetown.gov.za/Style%20Library/Images/coct-logo@2x.png"
     )
     summary_str = alert_dict[TWEET_COL].replace("\n", " | ").replace("    ", " ")
@@ -864,76 +866,80 @@ class ServiceAlertEmailer(ServiceAlertBroadcaster):
     def __init__(self, minio_write_name=SA_EMAIL_NAME):
         super().__init__(minio_write_name=minio_write_name)
 
-    def send_alert_comms(self):
+    def _config_alert_dict_generator(self):
+        for config, (*_, alert_df) in zip(SA_EMAIL_CONFIGS,
+                                          self._service_alerts_generator(SA_EMAIL_CONFIGS)):
+            config_hash = hashlib.sha256(str.encode(str(config.receivers) +
+                                                    str(config.email_focus))).hexdigest()
+            if alert_df.empty:
+                logging.warning(f"Nothing more to do for {config=}, skipping!")
+                continue
+
+            alert_df = config.apply_additional_filter(alert_df)
+
+            for alert_dict in alert_df.to_dict(orient="records"):
+                lower_status = alert_dict['status'].lower().replace(" ", "-")
+                yield config_hash, config, alert_dict, lower_status
+
+    def _in_cache(self, *args) -> bool:
+        for mfn in args:
+            logging.debug(f"Checking for {mfn} in cache")
+            for fn in minio_utils.list_objects_in_bucket(self.minio_write_name,
+                                                         minio_prefix_override=mfn):
+                logging.debug(f"{fn} exists!")
+                return True
+
+        return False
+
+    def _update_cache(self, content, filename, prefix_override=None):
+        with tempfile.TemporaryDirectory() as tempdir:
+            local_path = pathlib.Path(tempdir) / filename
+            with open(local_path, "w") as local_file:
+                local_file.write(content)
+
+            minio_utils.file_to_minio(local_path, self.minio_write_name,
+                                      filename_prefix_override=prefix_override)
+
+    def send_alert_emails(self):
+        with proxy_utils.setup_http_session() as http:
+            for config_hash, config, alert_dict, lower_status in self._config_alert_dict_generator():
+                even_more_legacy_email_filename = f"{config_hash}_{alert_dict[ID_COL]}.html"
+                legacy_email_filename = f"{config_hash}_{lower_status}_{alert_dict[ID_COL]}.html"
+                # moving to same filename, but under a hashed prefix
+                email_filename = f"{lower_status}_{alert_dict[ID_COL]}.html"
+
+                if alert_dict[TWEET_COL] is None:
+                    logging.warning(f"Empty post - {alert_dict[ID_COL]}")
+
+                logging.debug("Checking if email has already been sent...")
+                if not self._in_cache(even_more_legacy_email_filename, legacy_email_filename,
+                                      f"{config_hash}/{email_filename}"):
+                    logging.debug(f"Sending {alert_dict[ID_COL]}")
+                    email_message = _form_and_send_alerts_email(alert_dict, config.email_focus, email_filename,
+                                                                config.receivers,
+                                                                http)
+
+                    logging.debug("Backing up email")
+                    self._update_cache(email_message, email_filename,
+                                       prefix_override=config_hash + "/")
+
+    def send_alert_whatsapps(self):
         phone_number_dict = _load_phone_number_lookup()
 
         with proxy_utils.setup_http_session() as http:
-            for config, (*_, alert_df) in zip(SA_EMAIL_CONFIGS,
-                                              self._service_alerts_generator(SA_EMAIL_CONFIGS)):
-                config_hash = hashlib.sha256(str.encode(str(config.receivers) +
-                                                        str(config.email_focus))).hexdigest()
-                if alert_df.empty:
-                    logging.warning(f"Nothing more to do for {config=}, skipping!")
-                    continue
+            for config_hash, config, alert_dict, lower_status in self._config_alert_dict_generator():
+                # Iterating over receivers, and sending whatsapps
+                for (_, email_address) in config.receivers:
+                    whatsapp_filename = f"{lower_status}_{alert_dict[ID_COL]}_{base64.b64encode(email_address.encode()).decode()}.txt"
 
-                alert_df = config.apply_additional_filter(alert_df)
+                    if not self._in_cache(f"{config_hash}/{whatsapp_filename}") and email_address in phone_number_dict:
+                        logging.debug(f"Found phone number(s) for {email_address}, sending...")
+                        whatsapp_message = _form_and_send_whatsapp_messages(alert_dict,
+                                                                            phone_number_dict[email_address], http)
 
-                for alert_dict in alert_df.to_dict(orient="records"):
-                    legacy_email_filename = f"{config_hash}_{alert_dict[ID_COL]}.html"
-                    # new form of email filename incorporates the status
-                    lower_status = alert_dict['status'].lower().replace(" ", "-")
-                    email_filename = f"{config_hash}_{lower_status}_{alert_dict[ID_COL]}.html"
-
-                    if alert_dict[TWEET_COL] is None:
-                        logging.warning(f"Empty post - {alert_dict[ID_COL]}")
-
-                    logging.debug("Checking if email has already been sent...")
-                    skip_flag = False
-                    for fn in itertools.chain(
-                            minio_utils.list_objects_in_bucket(self.minio_write_name,
-                                                               minio_prefix_override=email_filename),
-                            minio_utils.list_objects_in_bucket(self.minio_write_name,
-                                                               minio_prefix_override=legacy_email_filename)
-                    ):
-                        logging.warning(f"Skipping {alert_dict[ID_COL]} ({fn}) for this config - already sent!")
-                        skip_flag = True
-                        break
-
-                    if not skip_flag:
-                        email_message = _form_and_send_alerts_email(alert_dict, config.email_focus, email_filename,
-                                                                    config.receivers,
-                                                                    http)
-
-                        logging.debug("Backing up email")
-                        with tempfile.TemporaryDirectory() as tempdir:
-                            local_path = pathlib.Path(tempdir) / email_filename
-                            with open(local_path, "w") as local_file:
-                                local_file.write(email_message)
-
-                            minio_utils.file_to_minio(local_path, self.minio_write_name)
-
-                    # Iterating over receivers, and sending whatsapps, too
-                    for (_, email_address) in config.receivers:
-                        whatsapp_filename = f"{lower_status}_{alert_dict[ID_COL]}_{base64.b64encode(email_address.encode()).decode()}.txt"
-                        skip_flag = False
-                        for fn in minio_utils.list_objects_in_bucket(self.minio_write_name,
-                                                                     minio_prefix_override=f"{config_hash}/{whatsapp_filename}"):
-                            logging.warning(f"Skipping {alert_dict[ID_COL]} ({fn}) for this config - already sent!")
-                            skip_flag = True
-                            break
-
-                        if not skip_flag and email_address in phone_number_dict:
-                            logging.debug(f"Found phone number(s) for {email_address}, sending...")
-                            whatsapp_message = _form_and_send_whatsapp_messages(alert_dict, phone_number_dict[email_address], http)
-
-                            logging.debug("Backing up whatsapp")
-                            with tempfile.TemporaryDirectory() as tempdir:
-                                local_path = pathlib.Path(tempdir) / whatsapp_filename
-                                with open(local_path, "w") as local_file:
-                                    local_file.write(whatsapp_message)
-
-                                minio_utils.file_to_minio(local_path, self.minio_write_name,
-                                                          filename_prefix_override=config_hash + "/")
+                        logging.debug("Backing up whatsapp")
+                        self._update_cache(whatsapp_message, whatsapp_filename,
+                                           prefix_override=config_hash + "/")
 
 
 if __name__ == "__main__":
@@ -944,6 +950,10 @@ if __name__ == "__main__":
     sa_emailer = ServiceAlertEmailer()
     logging.info("...G[ot] data from Minio")
 
-    logging.info("Sen[ding] comms...")
-    sa_emailer.send_alert_comms()
-    logging.info("...Sen[t] comms")
+    logging.info("Sen[ding] emails...")
+    sa_emailer.send_alert_emails()
+    logging.info("...Sen[t] emails")
+
+    logging.info("Sen[ding] whatsapps...")
+    sa_emailer.send_alert_whatsapps()
+    logging.info("...Sen[t] whatsapps")
