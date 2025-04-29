@@ -928,6 +928,11 @@ class ServiceAlertEmailer(ServiceAlertBroadcaster):
 
         with proxy_utils.setup_http_session() as http:
             for config_hash, config, alert_dict, lower_status in self._config_alert_dict_generator():
+
+                if alert_dict[TWEET_COL] is None:
+                    logging.warning(f"Empty post - {alert_dict[ID_COL]}, skipping!")
+                    continue
+
                 # Iterating over receivers, and sending whatsapps
                 for (_, email_address) in config.receivers:
                     whatsapp_filename = f"{lower_status}_{alert_dict[ID_COL]}_{base64.b64encode(email_address.encode()).decode()}.txt"
