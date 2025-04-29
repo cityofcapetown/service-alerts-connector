@@ -1,3 +1,5 @@
+import base64
+import copy
 import dataclasses
 import functools
 import hashlib
@@ -707,24 +709,24 @@ def _form_and_send_alerts_email(alert_dict: typing.Dict[str, typing.Any],
                                 email_filename: str,
                                 recipients: typing.Tuple[typing.Tuple[str, str]],
                                 http_session: requests.Session) -> str:
-    secrets = secrets_utils.get_secrets()
+    email_dict = copy.deepcopy(alert_dict)
 
     with proxy_utils.set_env_http_proxy():
         account = exchange_utils.setup_exchange_account(exchange_email="data.science@capetown.gov.za")
 
         # Forming email message
-        if alert_dict.get("status", "Open") == "Open":
-            email_subject = f"New Service Alert - {alert_dict['title']} in {alert_dict['area']}"
+        if email_dict.get("status", "Open") == "Open":
+            email_subject = f"New Service Alert - {email_dict['title']} in {email_dict['area']}"
         else:
-            email_subject = f"Updated Service Alert - {alert_dict['title']} in {alert_dict['area']}"
+            email_subject = f"Updated Service Alert - {email_dict['title']} in {email_dict['area']}"
 
         email_request_id = str(uuid.uuid4())
         email_date = pandas.Timestamp.now().isoformat()
-        suggested_post = alert_dict[TWEET_COL]
-        link_str = LINK_TEMPLATE.format(alert_id=alert_dict[ID_COL])
+        suggested_post = email_dict[TWEET_COL]
+        link_str = LINK_TEMPLATE.format(alert_id=email_dict[ID_COL])
         image_link_str = (
-            IMAGE_LINK_TEMPLATE.format(image_filename=alert_dict[FOOTPRINT_COL])
-            if alert_dict[FOOTPRINT_COL] is not None
+            IMAGE_LINK_TEMPLATE.format(image_filename=email_dict[FOOTPRINT_COL])
+            if email_dict[FOOTPRINT_COL] is not None
             else None
         )
 
@@ -736,19 +738,19 @@ def _form_and_send_alerts_email(alert_dict: typing.Dict[str, typing.Any],
             elif isinstance(v, typing.Collection) and all(map(pandas.isna, v)):
                 fields_to_delete += [k]
 
-        if alert_dict["area_type"] == "Official Planning Suburb":
+        if email_dict["area_type"] == "Official Planning Suburb":
             fields_to_delete += ["inferred_suburbs"]
-        elif alert_dict["area_type"] == "Citywide":
+        elif email_dict["area_type"] == "Citywide":
             fields_to_delete += ["inferred_suburbs", "inferred_wards"]
 
         for k in fields_to_delete:
-            if k in alert_dict:
-                del alert_dict[k]
+            if k in email_dict:
+                del email_dict[k]
 
         # formatting array fields
-        for k, v in alert_dict.items():
+        for k, v in email_dict.items():
             if isinstance(v, typing.Collection) and not isinstance(v, str):
-                alert_dict[k] = ", ".join(v)
+                email_dict[k] = ", ".join(v)
 
         logging.debug(f"{email_subject=}, {email_request_id=}, {email_date=}")
 
@@ -757,7 +759,7 @@ def _form_and_send_alerts_email(alert_dict: typing.Dict[str, typing.Any],
             message_body = jinja2.Template(template_file.read()).render(
                 email_subject=email_subject,
                 recipients=[name for name, _ in recipients if name],
-                alert_dict=alert_dict,
+                alert_dict=email_dict,
                 post_text=suggested_post,
                 email_focus=email_focus,
                 request_id=email_request_id,
@@ -810,7 +812,7 @@ def _load_phone_number_lookup() -> typing.Dict[str, typing.List[str]]:
 
 def _form_and_send_whatsapp_messages(alert_dict: typing.Dict[str, typing.Any],
                                      phone_numbers: typing.List[str],
-                                     http_session: requests.Session):
+                                     http_session: requests.Session) -> str:
     secrets = secrets_utils.get_secrets()
     bearer_token = secrets["turnio"]["bearer_token"]
     auth_header = {"Authorization": f"Bearer {bearer_token}"}
@@ -855,6 +857,8 @@ def _form_and_send_whatsapp_messages(alert_dict: typing.Dict[str, typing.Any],
                                  json=whatsapp_dict, headers=auth_header)
         resp.raise_for_status()
 
+    return summary_str
+
 
 class ServiceAlertEmailer(ServiceAlertBroadcaster):
     def __init__(self, minio_write_name=SA_EMAIL_NAME):
@@ -895,20 +899,41 @@ class ServiceAlertEmailer(ServiceAlertBroadcaster):
                         skip_flag = True
                         break
 
-                    if skip_flag:
-                        continue
+                    if not skip_flag:
+                        email_message = _form_and_send_alerts_email(alert_dict, config.email_focus, email_filename,
+                                                                    config.receivers,
+                                                                    http)
 
-                    email_message = _form_and_send_alerts_email(alert_dict, config.email_focus, email_filename,
-                                                                config.receivers,
-                                                                http)
+                        logging.debug("Backing up email")
+                        with tempfile.TemporaryDirectory() as tempdir:
+                            local_path = pathlib.Path(tempdir) / email_filename
+                            with open(local_path, "w") as local_file:
+                                local_file.write(email_message)
+
+                            minio_utils.file_to_minio(local_path, self.minio_write_name)
 
                     # Iterating over receivers, and sending whatsapps, too
                     for (_, email_address) in config.receivers:
-                        if email_address in phone_number_dict:
-                            logging.debug(f"Found phone number(s) for {email_address}, sending...")
-                            _form_and_send_whatsapp_messages(alert_dict, phone_number_dict[email_address], http)
+                        whatsapp_filename = f"{lower_status}_{alert_dict[ID_COL]}_{base64.b64encode(email_address.encode()).decode()}.txt"
+                        skip_flag = False
+                        for fn in minio_utils.list_objects_in_bucket(self.minio_write_name,
+                                                                     minio_prefix_override=f"{config_hash}/{whatsapp_filename}"):
+                            logging.warning(f"Skipping {alert_dict[ID_COL]} ({fn}) for this config - already sent!")
+                            skip_flag = True
+                            break
 
-                        minio_utils.file_to_minio(local_path, self.minio_write_name)
+                        if not skip_flag and email_address in phone_number_dict:
+                            logging.debug(f"Found phone number(s) for {email_address}, sending...")
+                            whatsapp_message = _form_and_send_whatsapp_messages(alert_dict, phone_number_dict[email_address], http)
+
+                            logging.debug("Backing up whatsapp")
+                            with tempfile.TemporaryDirectory() as tempdir:
+                                local_path = pathlib.Path(tempdir) / whatsapp_filename
+                                with open(local_path, "w") as local_file:
+                                    local_file.write(whatsapp_message)
+
+                                minio_utils.file_to_minio(local_path, self.minio_write_name,
+                                                          filename_prefix_override=config_hash + "/")
 
 
 if __name__ == "__main__":
@@ -919,6 +944,6 @@ if __name__ == "__main__":
     sa_emailer = ServiceAlertEmailer()
     logging.info("...G[ot] data from Minio")
 
-    logging.info("Sen[ding] emails...")
-    sa_emailer.send_alert_emails()
-    logging.info("...Sen[t] emails")
+    logging.info("Sen[ding] comms...")
+    sa_emailer.send_alert_comms()
+    logging.info("...Sen[t] comms")
