@@ -2,6 +2,7 @@ import base64
 import contextlib
 import copy
 import dataclasses
+import enum
 import functools
 import hashlib
 import itertools
@@ -44,12 +45,20 @@ TURNIO_ENDPOINT = "https://whatsapp.turn.io/v1/messages"
 TURNIO_NAMESPACE = "e737adae_bb1f_4551_a15b_e70bf7011942"
 TURNIO_TEMPLATE = "city_alerts_v1"
 
+class CommunicationPreference(enum.Enum):
+    EMAIL = "email"
+    WHATSAPP = "whatsapp"
+
 
 @dataclasses.dataclass
 class ServiceAlertEmailConfig(ServiceAlertOutputFileConfig):
     receivers: typing.Tuple[typing.Tuple[str or None, str], ...]
     email_focus: str
     additional_filter: str or typing.Callable or None
+
+    comm_channel_preference: typing.Set[CommunicationPreference] = dataclasses.field(
+        default_factory=lambda: {CommunicationPreference.EMAIL, CommunicationPreference.WHATSAPP}
+    )
 
     def apply_additional_filter(self, data_df: pandas.DataFrame) -> pandas.DataFrame:
         logging.debug(f"( pre-filter) {data_df.shape=}")
@@ -866,13 +875,17 @@ class ServiceAlertEmailer(ServiceAlertBroadcaster):
     def __init__(self, minio_write_name=SA_EMAIL_NAME):
         super().__init__(minio_write_name=minio_write_name)
 
-    def _config_alert_dict_generator(self):
+    def _config_alert_dict_generator(self, comms_preference_value: CommunicationPreference or None =None):
         for config, (*_, alert_df) in zip(SA_EMAIL_CONFIGS,
                                           self._service_alerts_generator(SA_EMAIL_CONFIGS)):
             config_hash = hashlib.sha256(str.encode(str(config.receivers) +
                                                     str(config.email_focus))).hexdigest()
             if alert_df.empty:
                 logging.warning(f"Nothing more to do for {config=}, skipping!")
+                continue
+
+            if comms_preference_value and comms_preference_value not in config.comm_channel_preference:
+                logging.warning(f"{comms_preference_value} not in {config.comm_channel_preference=}, skipping!")
                 continue
 
             alert_df = config.apply_additional_filter(alert_df)
@@ -902,7 +915,7 @@ class ServiceAlertEmailer(ServiceAlertBroadcaster):
 
     def send_alert_emails(self):
         with proxy_utils.setup_http_session() as http:
-            for config_hash, config, alert_dict, lower_status in self._config_alert_dict_generator():
+            for config_hash, config, alert_dict, lower_status in self._config_alert_dict_generator(CommunicationPreference.EMAIL):
                 even_more_legacy_email_filename = f"{config_hash}_{alert_dict[ID_COL]}.html"
                 legacy_email_filename = f"{config_hash}_{lower_status}_{alert_dict[ID_COL]}.html"
                 # moving to same filename, but under a hashed prefix
@@ -927,7 +940,7 @@ class ServiceAlertEmailer(ServiceAlertBroadcaster):
         phone_number_dict = _load_phone_number_lookup()
 
         with proxy_utils.setup_http_session() as http:
-            for config_hash, config, alert_dict, lower_status in self._config_alert_dict_generator():
+            for config_hash, config, alert_dict, lower_status in self._config_alert_dict_generator(CommunicationPreference.WHATSAPP):
 
                 if alert_dict[TWEET_COL] is None:
                     logging.warning(f"Empty post - {alert_dict[ID_COL]}, skipping!")
