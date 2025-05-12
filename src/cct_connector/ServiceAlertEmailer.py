@@ -33,6 +33,11 @@ DS_REPLY_TO = (
     "kathryn.mcdermott@capetown.gov.za",
     "muhammed.ockards@capetown.gov.za",
 )
+CRM_REPLY_TO = (
+    "mohammed.maroof@capetown.gov.za",
+    "nonzuzo.jacob@capetown.gov.za",
+)
+
 RESOURCES_PATH = pathlib.Path(__file__).parent / ".." / "resources"
 ALERT_EMAIL_TEMPLATE = "service_alert_tweet_emailer_template.html.jinja2"
 CITY_LOGO_FILENAME = "rect_city_logo.png"
@@ -784,7 +789,7 @@ def _form_and_send_alerts_email(alert_dict: typing.Dict[str, typing.Any],
                           body=HTMLBody(message_body),
                           subject=email_subject,
                           to_recipients=[email for _, email in recipients],
-                          reply_to=DS_REPLY_TO)
+                          reply_to=DS_REPLY_TO + CRM_REPLY_TO)
         logging.debug(f"{message.to_recipients=}")
         logging.debug(f"{message.subject=}")
 
