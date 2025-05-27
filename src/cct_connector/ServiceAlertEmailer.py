@@ -1335,6 +1335,22 @@ SA_EMAIL_CONFIGS = [
                             "(inferred_suburbs.astype('str').str.lower().str.contains('somerset\Wwest') or "
                             " area.astype('str').str.lower().str.contains('somerset\Wwest')) and "
                             "area_type != 'Citywide'"),
+
+    # Ottery
+    ServiceAlertEmailConfig("current", False, "v1", EMAIL_COLS,
+                            (("Shereef", "Mohammed.Maroof@capetown.gov.za"),),
+                            "all unplanned alerts that affect Ottery",
+                            "(inferred_suburbs.astype('str').str.lower().str.contains('ottery') or "
+                            " area.astype('str').str.lower().str.contains('ottery')) and "
+                            "area_type != 'Citywide'"),
+    ServiceAlertEmailConfig("current", True, "v1", EMAIL_COLS,
+                            (("Shereef", "Mohammed.Maroof@capetown.gov.za"),),
+                            "all planned works that affect Ottery",
+                            "(inferred_suburbs.astype('str').str.lower().str.contains('ottery') or "
+                            " area.astype('str').str.lower().str.contains('ottery')) and "
+                            "area_type != 'Citywide'"),
+
+
     # Citywide
     ServiceAlertEmailConfig("current", False, "v1", EMAIL_COLS,
                             (("Gordon", "gordon.inggs@capetown.gov.za"),
