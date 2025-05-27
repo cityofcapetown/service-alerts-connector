@@ -1322,6 +1322,30 @@ SA_EMAIL_CONFIGS = [
                             "(inferred_suburbs.astype('str').str.lower().str.contains('grassy\Wpark') or "
                             " area.astype('str').str.lower().str.contains('grassy\Wpark'))"),
 
+    # Kraaifontein
+    ServiceAlertEmailConfig("current", False, "v1", EMAIL_COLS,
+                            (("Faheem", "Faheem.Sima@capetown.gov.za"),),
+                            "all unplanned alerts that affect Kraaifontein",
+                            "(inferred_suburbs.astype('str').str.lower().str.contains('kraaifontein') or "
+                            " area.astype('str').str.lower().str.contains('kraaifontein'))"),
+    ServiceAlertEmailConfig("current", True, "v1", EMAIL_COLS,
+                            (("Faheem", "Faheem.Sima@capetown.gov.za"),),
+                            "all planned works that affect Kraaifontein",
+                            "(inferred_suburbs.astype('str').str.lower().str.contains('kraaifontein') or "
+                            " area.astype('str').str.lower().str.contains('kraaifontein'))"),
+
+    # Parklands
+    ServiceAlertEmailConfig("current", False, "v1", EMAIL_COLS,
+                            (("Zwi", "zwivhuyazwau.sivhabu@capetown.gov.za"),),
+                            "all unplanned alerts that affect Parklands",
+                            "(inferred_suburbs.astype('str').str.lower().str.contains('parklands') or "
+                            " area.astype('str').str.lower().str.contains('parklands'))"),
+    ServiceAlertEmailConfig("current", True, "v1", EMAIL_COLS,
+                            (("Zwi", "zwivhuyazwau.sivhabu@capetown.gov.za"),),
+                            "all planned works that affect Parklands",
+                            "(inferred_suburbs.astype('str').str.lower().str.contains('parklands') or "
+                            " area.astype('str').str.lower().str.contains('parklands'))"),
+
     # Somerset West
     ServiceAlertEmailConfig("current", False, "v1", EMAIL_COLS,
                             (("Delyno", "delyno.dutoit@capetown.gov.za"),),
