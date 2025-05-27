@@ -1484,8 +1484,14 @@ def _whatsapp_session_exists(whatsapp_id: str, http_session: requests.Session, a
                             headers={"Authorization": f"Bearer {auth_token}", "Accept": "application/vnd.v1+json"})
     resp.raise_for_status()
 
-    # extracting last message received at as UTC timestamp
-    last_message_received = datetime.datetime.strptime(resp.json()['fields']['last_message_received_at'],
+    # extracting last message received
+    last_message_received_field = resp.json()['fields']['last_message_received_at']
+    # short circuiting things if this profile doesn't already exist
+    if last_message_received_field is None:
+        return False
+
+    # Doing datetime calculation
+    last_message_received = datetime.datetime.strptime(last_message_received_field,
                                                        "%Y-%m-%dT%H:%M:%SZ").astimezone(datetime.timezone.utc)
     time_since_last_received = datetime.datetime.now(datetime.timezone.utc) - last_message_received
     logging.debug(f"{whatsapp_id=}, {last_message_received=}, {time_since_last_received=}")
@@ -1551,6 +1557,8 @@ def _form_and_send_whatsapp_messages(alert_dict: typing.Dict[str, typing.Any],
 class ServiceAlertEmailer(ServiceAlertBroadcaster):
     def __init__(self, minio_write_name=SA_EMAIL_NAME):
         super().__init__(minio_write_name=minio_write_name)
+
+        self.whatsapp_no_session = set([])
 
     def _config_alert_dict_generator(self, comms_preference_value: CommunicationPreference or None = None):
         for config, (*_, alert_df) in zip(SA_EMAIL_CONFIGS,
@@ -1629,16 +1637,17 @@ class ServiceAlertEmailer(ServiceAlertBroadcaster):
                     for phone_number in phone_numbers:
                         whatsapp_filename = f"{lower_status}_{alert_dict[ID_COL]}_{base64.b64encode(phone_number.encode()).decode()}.txt"
 
-                        whatsapp_message = (
-                            _form_and_send_whatsapp_messages(alert_dict, phone_number, http)
-                            if not self._in_cache(f"{config_hash}/{whatsapp_filename}") else
-                            None
-                        )
+                        whatsapp_message = None
+                        if not self._in_cache(f"{config_hash}/{whatsapp_filename}") and phone_number not in self.whatsapp_no_session:
+                            whatsapp_message = _form_and_send_whatsapp_messages(alert_dict, phone_number, http)
+                            self.whatsapp_no_session |= {phone_number}
 
                         if whatsapp_message:
                             logging.debug("Backing up whatsapp")
                             self._update_cache(whatsapp_message, whatsapp_filename,
                                                prefix_override=config_hash + "/")
+                        elif phone_number in self.whatsapp_no_session:
+                            logging.warning(f"No whatsapp session found for {phone_number}")
                         else:
                             logging.warning("No whatsapp message sent")
 
@@ -1652,7 +1661,7 @@ if __name__ == "__main__":
     logging.info("...G[ot] data from Minio")
 
     logging.info("Sen[ding] emails...")
-    sa_emailer.send_alert_emails()
+    # sa_emailer.send_alert_emails()
     logging.info("...Sen[t] emails")
 
     logging.info("Sen[ding] whatsapps...")
