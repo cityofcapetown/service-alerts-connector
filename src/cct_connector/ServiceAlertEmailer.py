@@ -10,7 +10,9 @@ import itertools
 import json
 import logging
 import pathlib
+import random
 import tempfile
+import time
 import typing
 import uuid
 
@@ -1728,6 +1730,8 @@ class ServiceAlertEmailer(ServiceAlertBroadcaster):
                             logging.debug("Backing up whatsapp")
                             self._update_cache(whatsapp_message, whatsapp_filename,
                                                prefix_override=config_hash + "/")
+                            # Adding back-off with some jitter
+                            time.sleep(0.1 + 0.1*random.random())
                         elif phone_number in self.whatsapp_no_session:
                             logging.warning(f"No whatsapp session found for {phone_number}")
                         else:
