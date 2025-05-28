@@ -250,6 +250,26 @@ SA_EMAIL_CONFIGS = [
                             "all planned works that might affect Ward 6",
                             _ward_curry_pot("6")),
 
+    # Ward 7
+    ServiceAlertEmailConfig("current", False, "v1", EMAIL_COLS,
+                            (("Ald Twigg", "grant.twigg@capetown.gov.za"),),
+                            "all unplanned alerts that might affect Ward 7",
+                            _ward_curry_pot("7")),
+    ServiceAlertEmailConfig("current", True, "v1", EMAIL_COLS,
+                            (("Ald Twigg", "grant.twigg@capetown.gov.za"),),
+                            "all planned works that might affect Ward 7",
+                            _ward_curry_pot("7")),
+
+    # Ward 8
+    ServiceAlertEmailConfig("current", False, "v1", EMAIL_COLS,
+                            (("Cllr Loots", "Johann.Loots@capetown.gov.za"),),
+                            "all unplanned alerts that might affect Ward 8",
+                            _ward_curry_pot("8")),
+    ServiceAlertEmailConfig("current", True, "v1", EMAIL_COLS,
+                            (("Cllr Loots", "Johann.Loots@capetown.gov.za"),),
+                            "all planned works that might affect Ward 8",
+                            _ward_curry_pot("8")),
+
     # Ward 9
     ServiceAlertEmailConfig("current", False, "v1", EMAIL_COLS,
                             (("Cllr Kleinsmith", "mercia.kleinsmith@capetown.gov.za"),),
@@ -449,6 +469,26 @@ SA_EMAIL_CONFIGS = [
                             (("Cllr Jordaan", "Chris.Jordaan@capetown.gov.za"),),
                             "all planned works that might affect Ward 28",
                             _ward_curry_pot("28")),
+
+    # Ward 29
+    ServiceAlertEmailConfig("current", False, "v1", EMAIL_COLS,
+                            (("Cllr Lightburn", "allister.lightburn@capetown.gov.za"),),
+                            "all unplanned alerts that might affect Ward 29",
+                            _ward_curry_pot("29")),
+    ServiceAlertEmailConfig("current", True, "v1", EMAIL_COLS,
+                            (("Cllr Lightburn", "allister.lightburn@capetown.gov.za"),),
+                            "all planned works that might affect Ward 29",
+                            _ward_curry_pot("29")),
+
+    # Ward 30
+    ServiceAlertEmailConfig("current", False, "v1", EMAIL_COLS,
+                            (("Cllr DeVos", "Deidree.DeVos@capetown.gov.za"),),
+                            "all unplanned alerts that might affect Ward 30",
+                            _ward_curry_pot("30")),
+    ServiceAlertEmailConfig("current", True, "v1", EMAIL_COLS,
+                            (("Cllr DeVos", "Deidree.DeVos@capetown.gov.za"),),
+                            "all planned works that might affect Ward 30",
+                            _ward_curry_pot("30")),
 
     # Ward 31
     ServiceAlertEmailConfig("current", False, "v1", EMAIL_COLS,
