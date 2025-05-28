@@ -1741,7 +1741,7 @@ if __name__ == "__main__":
     logging.info("...G[ot] data from Minio")
 
     logging.info("Sen[ding] emails...")
-    # sa_emailer.send_alert_emails()
+    sa_emailer.send_alert_emails()
     logging.info("...Sen[t] emails")
 
     logging.info("Sen[ding] whatsapps...")
