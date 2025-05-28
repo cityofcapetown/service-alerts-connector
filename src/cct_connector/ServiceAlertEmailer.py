@@ -1546,9 +1546,11 @@ def _load_phone_number_lookup() -> typing.Dict[str, typing.List[str]]:
 @functools.lru_cache()
 def _whatsapp_upload_image(image_url: str, http_session: requests.Session, auth_token: str) -> str:
     logging.debug("Uploading image")
-    image_data = http_session.get(image_url).content
+    image_resp = http_session.get(image_url)
+    image_resp.raise_for_status()
+
     resp = http_session.post(TURNIO_MEDIA_ENDPOINT, headers={"Authorization": f"Bearer {auth_token}", "Content-Type": "image/png"},
-                             data=image_data)
+                             data=image_resp.content)
     resp.raise_for_status()
     media_id = resp.json()["media"][0]["id"]
     logging.debug("Uploaded image")
