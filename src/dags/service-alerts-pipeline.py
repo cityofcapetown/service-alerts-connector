@@ -40,6 +40,12 @@ with kubernetes_dag.airflowK8sDAG("service-alerts-pipeline",
                                                resources=kubernetes_dag.LIGHT_RESOURCES,
                                                startup_timeout_seconds=600,
                                                task_concurrency=1, )
+    wa_data_operator = dag.get_dag_operator("whatsapp-service-alerts",
+                                            "python3 cct_connector/ServiceAlertWhatsapper.py",
+                                            resources=kubernetes_dag.LIGHT_RESOURCES,
+                                            startup_timeout_seconds=600,
+                                            task_concurrency=1, )
 
     # Dependencies
     fetch_data_operator >> fix_data_operator >> augment_data_operator >> (broadcast_data_operator, email_data_operator)
+    broadcast_data_operator >> wa_data_operator
