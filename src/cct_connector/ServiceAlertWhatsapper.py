@@ -26,6 +26,12 @@ TURNIO_CONTACTS_ENDPOINT = "https://whatsapp.turn.io/v1/contacts"
 TURNIO_NAMESPACE = "e737adae_bb1f_4551_a15b_e70bf7011942"
 TURNIO_TEMPLATE = "secondalert_coct"
 
+CAVEAT_MESSAGE = """
+⚠️ *DANGER GEVAAR INGOZI*: Both the map and alert summary above were created using AI. ⚠️
+
+Either or both may contain errors, so please double-check any content against https://www.capetown.gov.za/Pages/City-Alerts.aspx before sharing publicly.
+"""
+
 
 @functools.lru_cache()
 def _load_phone_number_lookup() -> typing.Dict[str, typing.List[str]]:
@@ -188,6 +194,17 @@ class ServiceAlertWhatsapper(ServiceAlertEmailer):
         }
 
         # Sending the message!
+        resp = self.http_session.post(TURNIO_MESSAGES_ENDPOINT,
+                                      json=message_whatsapp_dict,
+                                      headers={"Authorization": f"Bearer {self.auth_token}"})
+        resp.raise_for_status()
+
+        # sending caveat message
+        message_whatsapp_dict["type"] = "text"
+        del message_whatsapp_dict["image"]
+        message_whatsapp_dict["text"] = {
+            "body": CAVEAT_MESSAGE
+        }
         resp = self.http_session.post(TURNIO_MESSAGES_ENDPOINT,
                                       json=message_whatsapp_dict,
                                       headers={"Authorization": f"Bearer {self.auth_token}"})
