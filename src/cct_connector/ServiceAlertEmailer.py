@@ -1,22 +1,15 @@
-import base64
-import contextlib
 import copy
 import dataclasses
-import datetime
 import enum
 import functools
 import hashlib
-import itertools
-import json
 import logging
 import pathlib
-import random
 import tempfile
-import time
 import typing
 import uuid
 
-from db_utils import exchange_utils, minio_utils, proxy_utils, secrets_utils
+from db_utils import exchange_utils, minio_utils, proxy_utils
 from exchangelib import HTMLBody, FileAttachment, Message
 import jinja2
 import pandas
@@ -24,8 +17,7 @@ import requests
 
 from cct_connector import (
     TWEET_COL, FOOTPRINT_COL, SUMMARY_COL,
-    SA_EMAIL_NAME, PHONE_NUMBER_LOOKUP_NAME, PHONE_NUMBER_LOOKUP_FILE,
-    IMAGE_LINK_TEMPLATE
+    SA_EMAIL_NAME, IMAGE_LINK_TEMPLATE
 )
 from cct_connector.ServiceAlertBroadcaster import ServiceAlertOutputFileConfig, ServiceAlertBroadcaster, ID_COL
 
@@ -1530,7 +1522,6 @@ class ServiceAlertEmailer(ServiceAlertBroadcaster):
     def __init__(self, minio_write_name=SA_EMAIL_NAME):
         super().__init__(minio_write_name=minio_write_name)
 
-        self.whatsapp_no_session = set([])
 
     def _config_alert_dict_generator(self, comms_preference_value: CommunicationPreference or None = None):
         for config, (*_, alert_df) in zip(SA_EMAIL_CONFIGS,
