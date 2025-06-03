@@ -47,13 +47,6 @@ CITY_LOGO_FILENAME = "rect_city_logo.png"
 LINK_TEMPLATE = "https://ctapps.capetown.gov.za/sites/crhub/SitePages/ViewServiceAlert.aspx#?ID={alert_id}"
 AREA_IMAGE_FILENAME = "area_image_filename.png"
 EMAIL_LINK_TEMPLATE = "https://lake.capetown.gov.za/service-alerts.service-alerts-emails/{email_filename}"
-FOOTPRINT_IMAGE_TEMPLATE = "https://service-alerts.cct-datascience.xyz/v1.3/footprint-map/{footprint_id}"
-
-TURNIO_MESSAGES_ENDPOINT = "https://whatsapp.turn.io/v1/messages"
-TURNIO_MEDIA_ENDPOINT = "https://whatsapp.turn.io/v1/media"
-TURNIO_CONTACTS_ENDPOINT = "https://whatsapp.turn.io/v1/contacts"
-TURNIO_NAMESPACE = "e737adae_bb1f_4551_a15b_e70bf7011942"
-TURNIO_TEMPLATE = "secondalert_coct"
 
 
 class CommunicationPreference(enum.Enum):
@@ -1533,111 +1526,6 @@ def _form_and_send_alerts_email(alert_dict: typing.Dict[str, typing.Any],
         return message_body
 
 
-@functools.lru_cache()
-def _load_phone_number_lookup() -> typing.Dict[str, typing.List[str]]:
-    with tempfile.TemporaryDirectory() as tempdir:
-        phone_number_lookup_filename = pathlib.Path(tempdir) / PHONE_NUMBER_LOOKUP_FILE
-        minio_utils.minio_to_file(str(phone_number_lookup_filename), PHONE_NUMBER_LOOKUP_NAME)
-
-        with open(phone_number_lookup_filename) as phone_number_lookup_file:
-            phone_number_lookup = json.load(phone_number_lookup_file)
-
-    return phone_number_lookup
-
-
-@functools.lru_cache()
-def _whatsapp_upload_image(image_url: str, http_session: requests.Session, auth_token: str) -> str:
-    logging.debug("Uploading image")
-    image_resp = http_session.get(image_url)
-    image_resp.raise_for_status()
-
-    resp = http_session.post(TURNIO_MEDIA_ENDPOINT, headers={"Authorization": f"Bearer {auth_token}", "Content-Type": "image/png"},
-                             data=image_resp.content)
-    resp.raise_for_status()
-    media_id = resp.json()["media"][0]["id"]
-    logging.debug("Uploaded image")
-
-    return media_id
-
-
-@functools.lru_cache()
-def _whatsapp_session_exists(whatsapp_id: str, http_session: requests.Session, auth_token: str) -> bool:
-    logging.debug("Checking if session exists")
-    # Getting profile info
-    resp = http_session.get(TURNIO_CONTACTS_ENDPOINT + f"/{whatsapp_id}/profile",
-                            headers={"Authorization": f"Bearer {auth_token}", "Accept": "application/vnd.v1+json"})
-    resp.raise_for_status()
-
-    # extracting last message received
-    last_message_received_field = resp.json()['fields']['last_message_received_at']
-    # short circuiting things if this profile doesn't already exist
-    if last_message_received_field is None:
-        return False
-
-    # Doing datetime calculation
-    last_message_received = datetime.datetime.strptime(last_message_received_field,
-                                                       "%Y-%m-%dT%H:%M:%SZ").astimezone(datetime.timezone.utc)
-    time_since_last_received = datetime.datetime.now(datetime.timezone.utc) - last_message_received
-    logging.debug(f"{whatsapp_id=}, {last_message_received=}, {time_since_last_received=}")
-    logging.debug("Finished checking if session exists")
-
-    # session exists if we've received a message in the last 24 hours
-    return time_since_last_received < datetime.timedelta(hours=24)
-
-
-def _form_and_send_whatsapp_messages(alert_dict: typing.Dict[str, typing.Any],
-                                     whatsapp_id: str,
-                                     http_session: requests.Session) -> str or None:
-    secrets = secrets_utils.get_secrets()
-    bearer_token = secrets["turnio"]["bearer_token"]
-    auth_header = {"Authorization": f"Bearer {bearer_token}"}
-
-    message_content = None
-
-    if _whatsapp_session_exists(whatsapp_id, http_session=http_session, auth_token=bearer_token):
-        # Getting image ID for map image
-        image_url = (
-            FOOTPRINT_IMAGE_TEMPLATE.format(footprint_id=alert_dict[FOOTPRINT_COL]) if alert_dict.get(FOOTPRINT_COL,
-                                                                                                      None) is not None
-            else "https://resource.capetown.gov.za/Style%20Library/Images/coct-logo@2x.png"
-        )
-        image_id = _whatsapp_upload_image(image_url, http_session, bearer_token)
-
-        # Forming the service message params
-        message_content = alert_dict[TWEET_COL]
-        message_whatsapp_dict = {
-            "preview_url": False,
-            "recipient_type": "individual",
-            "type": "image",
-            "image": {
-                "id": image_id,
-                "caption": message_content
-            }
-        }
-    # If the session doesn't exist, rather swaps out params for templated message
-    else:
-        logging.warning(f"No session exists for {whatsapp_id}, sending prompt template to it")
-        message_whatsapp_dict = {
-            "type": "template",
-            "template": {
-                "namespace": TURNIO_NAMESPACE,
-                "name": TURNIO_TEMPLATE,
-                "language": {"code": "en", "policy": "deterministic"},
-                "components": []
-            }
-        }
-
-    # setting the ID
-    message_whatsapp_dict["to"] = whatsapp_id
-
-    # Sending the message!
-    resp = http_session.post(TURNIO_MESSAGES_ENDPOINT,
-                             json=message_whatsapp_dict, headers=auth_header)
-    resp.raise_for_status()
-
-    return message_content
-
-
 class ServiceAlertEmailer(ServiceAlertBroadcaster):
     def __init__(self, minio_write_name=SA_EMAIL_NAME):
         super().__init__(minio_write_name=minio_write_name)
@@ -1705,38 +1593,6 @@ class ServiceAlertEmailer(ServiceAlertBroadcaster):
                     self._update_cache(email_message, email_filename,
                                        prefix_override=config_hash + "/")
 
-    def send_alert_whatsapps(self):
-        phone_number_dict = _load_phone_number_lookup()
-
-        with proxy_utils.setup_http_session() as http:
-            for config_hash, config, alert_dict, lower_status in self._config_alert_dict_generator(CommunicationPreference.WHATSAPP):
-
-                if alert_dict[TWEET_COL] is None:
-                    logging.warning(f"Empty post - {alert_dict[ID_COL]}, skipping!")
-                    continue
-
-                # Iterating over receivers, and sending whatsapps
-                for (_, email_address) in config.receivers:
-                    phone_numbers = phone_number_dict.get(email_address, [])
-                    for phone_number in phone_numbers:
-                        whatsapp_filename = f"{lower_status}_{alert_dict[ID_COL]}_{base64.b64encode(phone_number.encode()).decode()}.txt"
-
-                        whatsapp_message = None
-                        if not self._in_cache(f"{config_hash}/{whatsapp_filename}") and phone_number not in self.whatsapp_no_session:
-                            whatsapp_message = _form_and_send_whatsapp_messages(alert_dict, phone_number, http)
-                            self.whatsapp_no_session |= {phone_number}
-
-                        if whatsapp_message:
-                            logging.debug("Backing up whatsapp")
-                            self._update_cache(whatsapp_message, whatsapp_filename,
-                                               prefix_override=config_hash + "/")
-                            # Adding back-off with some jitter
-                            time.sleep(0.1 + 0.1*random.random())
-                        elif phone_number in self.whatsapp_no_session:
-                            logging.warning(f"No whatsapp session found for {phone_number}")
-                        else:
-                            logging.warning("No whatsapp message sent")
-
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.DEBUG,
@@ -1749,7 +1605,3 @@ if __name__ == "__main__":
     logging.info("Sen[ding] emails...")
     sa_emailer.send_alert_emails()
     logging.info("...Sen[t] emails")
-
-    logging.info("Sen[ding] whatsapps...")
-    sa_emailer.send_alert_whatsapps()
-    logging.info("...Sen[t] whatsapps")

@@ -7,6 +7,7 @@ RAW_SA_NAME = f"{SERVICE_ALERTS_PREFIX}.service-alerts"
 FIXED_SA_NAME = f"{SERVICE_ALERTS_PREFIX}.sanitised-service-alerts"
 AUGMENTED_SA_NAME = f"{SERVICE_ALERTS_PREFIX}.augmented-service-alerts"
 SA_EMAIL_NAME = f"{SERVICE_ALERTS_PREFIX}.service-alerts-emails"
+SA_WA_NAME = f"{SERVICE_ALERTS_PREFIX}.service-alerts-whatsapps"
 PHONE_NUMBER_LOOKUP_NAME = f"{SERVICE_ALERTS_PREFIX}.phone-number-lookup"
 
 # Other datasets
