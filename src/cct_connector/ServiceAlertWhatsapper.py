@@ -99,7 +99,7 @@ class ServiceAlertWhatsapper(ServiceAlertEmailer):
         last_message_sent_at = profile_fields.get('last_message_sent_at', None)
 
         if last_message_sent_at is None:
-            return False
+            return True
         else:
             last_message_sent_at = datetime.datetime.strptime(last_message_sent_at,
                                                               "%Y-%m-%dT%H:%M:%S.%fZ").astimezone(datetime.timezone.utc)
