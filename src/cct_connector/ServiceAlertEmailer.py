@@ -104,7 +104,7 @@ def _area_curry_pot(area: str) -> typing.Callable[[pandas.Series], bool]:
     # creating curried filter function
     def _area_filter(row: pandas.Series) -> bool:
         return (
-                row["inferred_suburbs"] is not None and area in row["inferred_suburbs"].str.lower()
+                row["inferred_suburbs"] is not None and area in pandas.Series(row["inferred_suburbs"]).str.lower()
         ) or (
             row['area'].astype('str').str.lower().str.contains(area)
         ) or (
