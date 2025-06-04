@@ -88,6 +88,10 @@ class ServiceAlertWhatsapper(ServiceAlertEmailer):
         profile_fields = self._get_profile_fields(whatsapp_id, self.cache_counter)
         prompt_message_count = profile_fields.get('prompt_message_count', 0)
 
+        # API seems to return a null at times
+        if prompt_message_count is None:
+            prompt_message_count = 0
+
         return prompt_message_count
 
     def _last_message_sent_more_than(self, whatsapp_id, threshold: int = 3):
@@ -105,8 +109,7 @@ class ServiceAlertWhatsapper(ServiceAlertEmailer):
 
 
     def _increment_prompt_count(self, whatsapp_id: str):
-        profile_fields = self._get_profile_fields(whatsapp_id, self.cache_counter)
-        prompt_message_count = profile_fields.get('prompt_message_count', 0)
+        prompt_message_count = self._get_prompt_count(whatsapp_id)
 
         logging.debug(f"Incrementing prompt count for {whatsapp_id=} ({prompt_message_count=})")
         resp = self.http_session.patch(TURNIO_CONTACTS_ENDPOINT + f"/{whatsapp_id}/profile",
