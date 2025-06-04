@@ -100,15 +100,17 @@ def _service_area_curry_pot(service_area: str) -> typing.Callable[[pandas.Series
 
 
 def _area_curry_pot(area: str) -> typing.Callable[[pandas.Series], bool]:
-
     # creating curried filter function
     def _area_filter(row: pandas.Series) -> bool:
         return (
-                row["inferred_suburbs"] is not None and pandas.Series(row["inferred_suburbs"]).str.lower().str.contains(area).any()
+                pandas.Series(row["inferred_suburbs"]).notna().all() and
+                pandas.Series(row["inferred_suburbs"]).str.lower().str.contains(area).any()
         ) or (
-            pandas.Series([row['area']]).astype(str).str.lower().str.contains(area).any()
+                pandas.notna(row["area"]) and
+                pandas.Series([row['area'].lower()]).astype(str).str.lower().str.contains(area).any()
         ) or (
-                area in row["location"].str.lower()
+                pandas.notna(row["location"]) and
+                pandas.Series([row["location"].lower()]).str.contains(area).any()
         )
 
     return _area_filter
@@ -1524,7 +1526,6 @@ class ServiceAlertEmailer(ServiceAlertBroadcaster):
     def __init__(self, minio_write_name=SA_EMAIL_NAME):
         super().__init__(minio_write_name=minio_write_name)
 
-
     def _config_alert_dict_generator(self, comms_preference_value: CommunicationPreference or None = None):
         for config, (*_, alert_df) in zip(SA_EMAIL_CONFIGS,
                                           self._service_alerts_generator(SA_EMAIL_CONFIGS)):
@@ -1565,7 +1566,8 @@ class ServiceAlertEmailer(ServiceAlertBroadcaster):
 
     def send_alert_emails(self):
         with proxy_utils.setup_http_session() as http:
-            for config_hash, config, alert_dict, lower_status in self._config_alert_dict_generator(CommunicationPreference.EMAIL):
+            for config_hash, config, alert_dict, lower_status in self._config_alert_dict_generator(
+                    CommunicationPreference.EMAIL):
                 even_more_legacy_email_filename = f"{config_hash}_{alert_dict[ID_COL]}.html"
                 legacy_email_filename = f"{config_hash}_{lower_status}_{alert_dict[ID_COL]}.html"
                 # moving to same filename, but under a hashed prefix
