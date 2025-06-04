@@ -134,14 +134,6 @@ SA_EMAIL_CONFIGS = [
                             (("Pia", "pia@turn.io"),),
                             "all planned alerts",
                             None, comm_channel_preference={CommunicationPreference.WHATSAPP}),
-    ServiceAlertEmailConfig("current", False, "v1", EMAIL_COLS,
-                            (("Wim", "wim.louw@capetown.gov.za"),),
-                            "all unplanned alerts",
-                            None),
-    ServiceAlertEmailConfig("current", True, "v1", EMAIL_COLS,
-                            (("Wim", "wim.louw@capetown.gov.za"),),
-                            "all planned alerts",
-                            None),
     # Social Media
     ServiceAlertEmailConfig("current", False, "v1", EMAIL_COLS,
                             (("Social Media Team", "social.media@capetown.gov.za"),),
@@ -1402,6 +1394,15 @@ SA_EMAIL_CONFIGS = [
                             "all planned works that affect Ottery",
                             _area_curry_pot('ottery')),
 
+    # Muizenberg
+    ServiceAlertEmailConfig("current", False, "v1", EMAIL_COLS,
+                            (("Wim", "wim.louw@capetown.gov.za"),),
+                            "all unplanned alerts that affect Muizenberg",
+                            _area_curry_pot('muizenberg')),
+    ServiceAlertEmailConfig("current", True, "v1", EMAIL_COLS,
+                            (("Wim", "wim.louw@capetown.gov.za"),),
+                            "all unplanned alerts that affect Muizenberg",
+                            _area_curry_pot('muizenberg')),
 
     # Citywide
     ServiceAlertEmailConfig("current", False, "v1", EMAIL_COLS,
