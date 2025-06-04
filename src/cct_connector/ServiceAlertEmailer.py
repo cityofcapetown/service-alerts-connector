@@ -99,6 +99,21 @@ def _service_area_curry_pot(service_area: str) -> typing.Callable[[pandas.Series
     return _service_area_filter
 
 
+def _area_curry_pot(area: str) -> typing.Callable[[pandas.Series], bool]:
+
+    # creating curried filter function
+    def _area_filter(row: pandas.Series) -> bool:
+        return (
+                row["inferred_suburbs"] is not None and area in row["inferred_suburbs"].str.lower()
+        ) or (
+            row['area'].astype('str').str.lower().str.contains(area)
+        ) or (
+                area in row["location"].str.lower()
+        )
+
+    return _area_filter
+
+
 # ToDo move these to a YAML config
 SA_EMAIL_CONFIGS = [
     # All Alerts
@@ -1341,65 +1356,51 @@ SA_EMAIL_CONFIGS = [
     ServiceAlertEmailConfig("current", False, "v1", EMAIL_COLS,
                             (("Rejane", "rejane.alexander@capetown.gov.za"),),
                             "all unplanned alerts that affect Grassy Park",
-                            "(inferred_suburbs.astype('str').str.lower().str.contains('grassy\Wpark') or "
-                            " area.astype('str').str.lower().str.contains('grassy\Wpark'))"),
+                            _area_curry_pot('grassy\Wpark')),
     ServiceAlertEmailConfig("current", True, "v1", EMAIL_COLS,
                             (("Rejane", "rejane.alexander@capetown.gov.za"),),
                             "all planned works that affect Grassy Park",
-                            "(inferred_suburbs.astype('str').str.lower().str.contains('grassy\Wpark') or "
-                            " area.astype('str').str.lower().str.contains('grassy\Wpark'))"),
+                            _area_curry_pot('grassy\Wpark')),
 
     # Kraaifontein
     ServiceAlertEmailConfig("current", False, "v1", EMAIL_COLS,
                             (("Faheem", "Faheem.Sima@capetown.gov.za"),),
                             "all unplanned alerts that affect Kraaifontein",
-                            "(inferred_suburbs.astype('str').str.lower().str.contains('kraaifontein') or "
-                            " area.astype('str').str.lower().str.contains('kraaifontein'))"),
+                            _area_curry_pot('kraaifontein')),
     ServiceAlertEmailConfig("current", True, "v1", EMAIL_COLS,
                             (("Faheem", "Faheem.Sima@capetown.gov.za"),),
                             "all planned works that affect Kraaifontein",
-                            "(inferred_suburbs.astype('str').str.lower().str.contains('kraaifontein') or "
-                            " area.astype('str').str.lower().str.contains('kraaifontein'))"),
+                            _area_curry_pot('kraaifontein')),
 
     # Parklands
     ServiceAlertEmailConfig("current", False, "v1", EMAIL_COLS,
                             (("Zwi", "zwivhuyazwau.sivhabu@capetown.gov.za"),),
                             "all unplanned alerts that affect Parklands",
-                            "(inferred_suburbs.astype('str').str.lower().str.contains('parklands') or "
-                            " area.astype('str').str.lower().str.contains('parklands'))"),
+                            _area_curry_pot('parklands')),
     ServiceAlertEmailConfig("current", True, "v1", EMAIL_COLS,
                             (("Zwi", "zwivhuyazwau.sivhabu@capetown.gov.za"),),
                             "all planned works that affect Parklands",
-                            "(inferred_suburbs.astype('str').str.lower().str.contains('parklands') or "
-                            " area.astype('str').str.lower().str.contains('parklands'))"),
+                            _area_curry_pot('parklands')),
 
     # Somerset West
     ServiceAlertEmailConfig("current", False, "v1", EMAIL_COLS,
                             (("Delyno", "delyno.dutoit@capetown.gov.za"),),
                             "all unplanned alerts that affect Somerset West",
-                            "(inferred_suburbs.astype('str').str.lower().str.contains('somerset\Wwest') or "
-                            " area.astype('str').str.lower().str.contains('somerset\Wwest')) and "
-                            "area_type != 'Citywide'"),
+                            _area_curry_pot('somerset\Wwest')),
     ServiceAlertEmailConfig("current", True, "v1", EMAIL_COLS,
                             (("Delyno", "delyno.dutoit@capetown.gov.za"),),
                             "all planned works that affect Somerset West",
-                            "(inferred_suburbs.astype('str').str.lower().str.contains('somerset\Wwest') or "
-                            " area.astype('str').str.lower().str.contains('somerset\Wwest')) and "
-                            "area_type != 'Citywide'"),
+                            _area_curry_pot('somerset\Wwest')),
 
     # Ottery
     ServiceAlertEmailConfig("current", False, "v1", EMAIL_COLS,
                             (("Shereef", "Mohammed.Maroof@capetown.gov.za"),),
                             "all unplanned alerts that affect Ottery",
-                            "(inferred_suburbs.astype('str').str.lower().str.contains('ottery') or "
-                            " area.astype('str').str.lower().str.contains('ottery')) and "
-                            "area_type != 'Citywide'"),
+                            _area_curry_pot('ottery')),
     ServiceAlertEmailConfig("current", True, "v1", EMAIL_COLS,
                             (("Shereef", "Mohammed.Maroof@capetown.gov.za"),),
                             "all planned works that affect Ottery",
-                            "(inferred_suburbs.astype('str').str.lower().str.contains('ottery') or "
-                            " area.astype('str').str.lower().str.contains('ottery')) and "
-                            "area_type != 'Citywide'"),
+                            _area_curry_pot('ottery')),
 
 
     # Citywide
