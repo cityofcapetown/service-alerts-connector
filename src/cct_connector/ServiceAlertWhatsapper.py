@@ -163,7 +163,30 @@ class ServiceAlertWhatsapper(ServiceAlertEmailer):
                 "namespace": TURNIO_NAMESPACE,
                 "name": TURNIO_TEMPLATE,
                 "language": {"code": "en", "policy": "deterministic"},
-                "components": []
+                "components": [
+                    {
+                        "type": "button",
+                        "sub_type": "quick_reply",
+                        "index": "0",
+                        "parameters": [
+                            {
+                                "type": "payload",
+                                "payload": "turn-start-journey:2c7f3cc8-f8c1-402d-b828-992ce0f47942"
+                            }
+                        ]
+                    },
+                    {
+                        "type": "button",
+                        "sub_type": "quick_reply",
+                        "index": "1",
+                        "parameters": [
+                            {
+                                "type": "payload",
+                                "payload": "turn-start-journey:09eb633e-2026-44cf-82da-f7fb3c97d86b"
+                            }
+                        ]
+                    }
+                ]
             }
         }
 
