@@ -64,7 +64,7 @@ V1_3_COLS = V0_COLS + [SUMMARY_COL, "status",
 
 BOK_CONFIGS = [
     ServiceAlertOutputFileConfig(time_window, planned, version, version_cols)
-    for time_window in [None, 7, "current"]
+    for time_window in [None]
     for planned in [True, False]
     for version, version_cols in (('v0', V0_COLS),
                                   ('v1', V1_COLS),
@@ -105,7 +105,7 @@ class ServiceAlertBroadcaster(ServiceAlertBase.ServiceAlertsBase):
 
         self.data.reset_index(names=[ID_COL], inplace=True)
 
-    def _service_alerts_generator(self, configs=BOK_CONFIGS):
+    def _service_alerts_generator(self, configs):
         now = pd.Timestamp.now(tz="Africa/Johannesburg")
 
         for bok_config in configs:
@@ -127,7 +127,7 @@ class ServiceAlertBroadcaster(ServiceAlertBase.ServiceAlertsBase):
 
             yield bok_config.generate_filename(), bok_config.generate_footprint_path(), output_df
 
-    def write_to_s3(self):
+    def write_to_s3(self, configs=BOK_CONFIGS):
         secrets = secrets_utils.get_secrets()
         s3_secrets = secrets["aws"]["s3"]
 
@@ -138,7 +138,7 @@ class ServiceAlertBroadcaster(ServiceAlertBase.ServiceAlertsBase):
             s3 = boto_session.resource('s3')
             bucket = s3.Bucket(SERVICE_ALERTS_S3_BUCKET)
 
-            for obj_name, footprint_prefix_path, output_df in self._service_alerts_generator():
+            for obj_name, footprint_prefix_path, output_df in self._service_alerts_generator(configs):
                 logging.debug(f"Writing {obj_name} to S3")
                 output_json = output_df.to_json(orient='records', date_format='iso')
                 bucket.put_object(Body=output_json, Key=obj_name, ContentType="application/json")

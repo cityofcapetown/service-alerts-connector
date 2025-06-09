@@ -1,14 +1,15 @@
+import copy
 import dataclasses
+import enum
 import functools
 import hashlib
-import itertools
 import logging
 import pathlib
 import tempfile
 import typing
 import uuid
 
-from db_utils import exchange_utils, minio_utils, proxy_utils, secrets_utils
+from db_utils import exchange_utils, minio_utils, proxy_utils
 from exchangelib import HTMLBody, FileAttachment, Message
 import jinja2
 import pandas
@@ -27,6 +28,11 @@ DS_REPLY_TO = (
     "kathryn.mcdermott@capetown.gov.za",
     "muhammed.ockards@capetown.gov.za",
 )
+CRM_REPLY_TO = (
+    "mohammed.maroof@capetown.gov.za",
+    "nonzuzo.jacob@capetown.gov.za",
+)
+
 RESOURCES_PATH = pathlib.Path(__file__).parent / ".." / "resources"
 ALERT_EMAIL_TEMPLATE = "service_alert_tweet_emailer_template.html.jinja2"
 CITY_LOGO_FILENAME = "rect_city_logo.png"
@@ -35,11 +41,20 @@ AREA_IMAGE_FILENAME = "area_image_filename.png"
 EMAIL_LINK_TEMPLATE = "https://lake.capetown.gov.za/service-alerts.service-alerts-emails/{email_filename}"
 
 
+class CommunicationPreference(enum.Enum):
+    EMAIL = "email"
+    WHATSAPP = "whatsapp"
+
+
 @dataclasses.dataclass
 class ServiceAlertEmailConfig(ServiceAlertOutputFileConfig):
     receivers: typing.Tuple[typing.Tuple[str or None, str], ...]
     email_focus: str
     additional_filter: str or typing.Callable or None
+
+    comm_channel_preference: typing.Set[CommunicationPreference] = dataclasses.field(
+        default_factory=lambda: {CommunicationPreference.EMAIL, CommunicationPreference.WHATSAPP}
+    )
 
     def apply_additional_filter(self, data_df: pandas.DataFrame) -> pandas.DataFrame:
         logging.debug(f"( pre-filter) {data_df.shape=}")
@@ -84,6 +99,24 @@ def _service_area_curry_pot(service_area: str) -> typing.Callable[[pandas.Series
     return _service_area_filter
 
 
+def _area_curry_pot(area: str) -> typing.Callable[[pandas.Series], bool]:
+    # creating curried filter function
+    def _area_filter(row: pandas.Series) -> bool:
+        return (
+                pandas.Series(row["inferred_suburbs"]).notna().all() and
+                pandas.Series(row["inferred_suburbs"]).str.lower().str.contains(area).any()
+        ) or (
+                pandas.notna(row["area"]) and
+                pandas.Series([row['area'].lower()]).astype(str).str.lower().str.contains(area).any()
+        ) or (
+                pandas.notna(row["location"]) and
+                pandas.Series([row["location"].lower()]).str.contains(area).any()
+        )
+
+    return _area_filter
+
+
+# ToDo move these to a YAML config
 SA_EMAIL_CONFIGS = [
     # All Alerts
     # Debugging
@@ -95,6 +128,14 @@ SA_EMAIL_CONFIGS = [
                             (("Gordon", "gordon.inggs@capetown.gov.za"),),
                             "all planned alerts",
                             None),
+    ServiceAlertEmailConfig("current", False, "v1", EMAIL_COLS,
+                            (("Pia", "pia@turn.io"),),
+                            "all unplanned alerts",
+                            None, comm_channel_preference={CommunicationPreference.WHATSAPP}),
+    ServiceAlertEmailConfig("current", True, "v1", EMAIL_COLS,
+                            (("Pia", "pia@turn.io"),),
+                            "all planned alerts",
+                            None, comm_channel_preference={CommunicationPreference.WHATSAPP}),
     # Social Media
     ServiceAlertEmailConfig("current", False, "v1", EMAIL_COLS,
                             (("Social Media Team", "social.media@capetown.gov.za"),),
@@ -145,6 +186,26 @@ SA_EMAIL_CONFIGS = [
                             "all unplanned water and sanitation alerts",
                             _service_area_curry_pot("Water & Sanitation")),
     # Wards
+    # Ward 1
+    ServiceAlertEmailConfig("current", False, "v1", EMAIL_COLS,
+                            (("Cllr Visser", "cheryl.visser@capetown.gov.za"),),
+                            "all unplanned alerts that might affect Ward 1",
+                            _ward_curry_pot("1")),
+    ServiceAlertEmailConfig("current", True, "v1", EMAIL_COLS,
+                            (("Cllr Visser", "cheryl.visser@capetown.gov.za"),),
+                            "all planned works that might affect Ward 1",
+                            _ward_curry_pot("1")),
+
+    # Ward 2
+    ServiceAlertEmailConfig("current", False, "v1", EMAIL_COLS,
+                            (("Cllr Cannon", "Roger.Cannon@capetown.gov.za"),),
+                            "all unplanned alerts that might affect Ward 2",
+                            _ward_curry_pot("2")),
+    ServiceAlertEmailConfig("current", True, "v1", EMAIL_COLS,
+                            (("Cllr Cannon", "Roger.Cannon@capetown.gov.za"),),
+                            "all planned works that might affect Ward 2",
+                            _ward_curry_pot("2")),
+
     # Ward 3
     ServiceAlertEmailConfig("current", False, "v1", EMAIL_COLS,
                             (("Cllr Van Zyl", "annelize.vanZyl@capetown.gov.za"),),
@@ -154,6 +215,127 @@ SA_EMAIL_CONFIGS = [
                             (("Cllr Van Zyl", "annelize.vanZyl@capetown.gov.za"),),
                             "all planned works that might affect Ward 3",
                             _ward_curry_pot("3")),
+
+    # Ward 4
+    ServiceAlertEmailConfig("current", False, "v1", EMAIL_COLS,
+                            (("Cllr Benadie", "Anthony.Benadie@capetown.gov.za"),),
+                            "all unplanned alerts that might affect Ward 4",
+                            _ward_curry_pot("4")),
+    ServiceAlertEmailConfig("current", True, "v1", EMAIL_COLS,
+                            (("Cllr Benadie", "Anthony.Benadie@capetown.gov.za"),),
+                            "all planned works that might affect Ward 4",
+                            _ward_curry_pot("4")),
+
+    # Ward 5
+    ServiceAlertEmailConfig("current", False, "v1", EMAIL_COLS,
+                            (("Cllr Temlett", "Miquette.Temlett@capetown.gov.za"),),
+                            "all unplanned alerts that might affect Ward 5",
+                            _ward_curry_pot("5")),
+    ServiceAlertEmailConfig("current", True, "v1", EMAIL_COLS,
+                            (("Cllr Temlett", "Miquette.Temlett@capetown.gov.za"),),
+                            "all planned works that might affect Ward 5",
+                            _ward_curry_pot("5")),
+
+    # Ward 6
+    ServiceAlertEmailConfig("current", False, "v1", EMAIL_COLS,
+                            (("Cllr Nodliwa", "Siviwe.Nodiwa@capetown.gov.za"),),
+                            "all unplanned alerts that might affect Ward 6",
+                            _ward_curry_pot("6")),
+    ServiceAlertEmailConfig("current", True, "v1", EMAIL_COLS,
+                            (("Cllr Nodliwa", "Siviwe.Nodiwa@capetown.gov.za"),),
+                            "all planned works that might affect Ward 6",
+                            _ward_curry_pot("6")),
+
+    # Ward 7
+    ServiceAlertEmailConfig("current", False, "v1", EMAIL_COLS,
+                            (("Ald Twigg", "grant.twigg@capetown.gov.za"),),
+                            "all unplanned alerts that might affect Ward 7",
+                            _ward_curry_pot("7")),
+    ServiceAlertEmailConfig("current", True, "v1", EMAIL_COLS,
+                            (("Ald Twigg", "grant.twigg@capetown.gov.za"),),
+                            "all planned works that might affect Ward 7",
+                            _ward_curry_pot("7")),
+
+    # Ward 8
+    ServiceAlertEmailConfig("current", False, "v1", EMAIL_COLS,
+                            (("Cllr Loots", "Johann.Loots@capetown.gov.za"),),
+                            "all unplanned alerts that might affect Ward 8",
+                            _ward_curry_pot("8")),
+    ServiceAlertEmailConfig("current", True, "v1", EMAIL_COLS,
+                            (("Cllr Loots", "Johann.Loots@capetown.gov.za"),),
+                            "all planned works that might affect Ward 8",
+                            _ward_curry_pot("8")),
+
+    # Ward 9
+    ServiceAlertEmailConfig("current", False, "v1", EMAIL_COLS,
+                            (("Cllr Kleinsmith", "mercia.kleinsmith@capetown.gov.za"),),
+                            "all unplanned alerts that might affect Ward 9",
+                            _ward_curry_pot("9")),
+    ServiceAlertEmailConfig("current", True, "v1", EMAIL_COLS,
+                            (("Cllr Kleinsmith", "mercia.kleinsmith@capetown.gov.za"),),
+                            "all planned works that might affect Ward 9",
+                            _ward_curry_pot("9")),
+
+    # Ward 10
+    ServiceAlertEmailConfig("current", False, "v1", EMAIL_COLS,
+                            (("Cllr Visser", "Jacoline.Visser@capetown.gov.za"),),
+                            "all unplanned alerts that might affect Ward 10",
+                            _ward_curry_pot("10")),
+    ServiceAlertEmailConfig("current", True, "v1", EMAIL_COLS,
+                            (("Cllr Visser", "Jacoline.Visser@capetown.gov.za"),),
+                            "all planned works that might affect Ward 10",
+                            _ward_curry_pot("10")),
+
+    # Ward 11
+    ServiceAlertEmailConfig("current", False, "v1", EMAIL_COLS,
+                            (("Cllr Vos", "Pieter.deVos2@capetown.gov.za"),),
+                            "all unplanned alerts that might affect Ward 11",
+                            _ward_curry_pot("11")),
+    ServiceAlertEmailConfig("current", True, "v1", EMAIL_COLS,
+                            (("Cllr Vos", "Pieter.deVos2@capetown.gov.za"),),
+                            "all planned works that might affect Ward 11",
+                            _ward_curry_pot("11")),
+
+    # Ward 12
+    ServiceAlertEmailConfig("current", False, "v1", EMAIL_COLS,
+                            (("Cllr Jaftha", "WillieDesmond.Jaftha@capetown.gov.za"),),
+                            "all unplanned alerts that might affect Ward 12",
+                            _ward_curry_pot("12")),
+    ServiceAlertEmailConfig("current", True, "v1", EMAIL_COLS,
+                            (("Cllr Jaftha", "WillieDesmond.Jaftha@capetown.gov.za"),),
+                            "all planned works that might affect Ward 12",
+                            _ward_curry_pot("12")),
+
+    # Ward 13
+    ServiceAlertEmailConfig("current", False, "v1", EMAIL_COLS,
+                            (("Cllr Adonis", "michelle.adonis@capetown.gov.za"),),
+                            "all unplanned alerts that might affect Ward 13",
+                            _ward_curry_pot("13")),
+    ServiceAlertEmailConfig("current", True, "v1", EMAIL_COLS,
+                            (("Cllr Adonis", "michelle.adonis@capetown.gov.za"),),
+                            "all planned works that might affect Ward 13",
+                            _ward_curry_pot("13")),
+
+    # Ward 14
+    ServiceAlertEmailConfig("current", False, "v1", EMAIL_COLS,
+                            (("Cllr Mare", "Kariena.Mare@capetown.gov.za"),),
+                            "all unplanned alerts that might affect Ward 14",
+                            _ward_curry_pot("14")),
+    ServiceAlertEmailConfig("current", True, "v1", EMAIL_COLS,
+                            (("Cllr Mare", "Kariena.Mare@capetown.gov.za"),),
+                            "all planned works that might affect Ward 14",
+                            _ward_curry_pot("14")),
+
+    # Ward 15
+    ServiceAlertEmailConfig("current", False, "v1", EMAIL_COLS,
+                            (("Cllr Peck", "gregory.peck@capetown.gov.za"),),
+                            "all unplanned alerts that might affect Ward 15",
+                            _ward_curry_pot("15")),
+    ServiceAlertEmailConfig("current", True, "v1", EMAIL_COLS,
+                            (("Cllr Peck", "gregory.peck@capetown.gov.za"),),
+                            "all planned works that might affect Ward 15",
+                            _ward_curry_pot("15")),
+
     # Ward 16
     ServiceAlertEmailConfig("current", False, "v1", EMAIL_COLS,
                             (("Cllr Barends", "ursula.barends@capetown.gov.za"),),
@@ -163,6 +345,47 @@ SA_EMAIL_CONFIGS = [
                             (("Cllr Barends", "ursula.barends@capetown.gov.za"),),
                             "all planned works that might affect Ward 16",
                             _ward_curry_pot("16")),
+
+    # Ward 17
+    ServiceAlertEmailConfig("current", False, "v1", EMAIL_COLS,
+                            (("Cllr Sauls", "FransAnthony.Sauls@capetown.gov.za"),),
+                            "all unplanned alerts that might affect Ward 17",
+                            _ward_curry_pot("17")),
+    ServiceAlertEmailConfig("current", True, "v1", EMAIL_COLS,
+                            (("Cllr Sauls", "FransAnthony.Sauls@capetown.gov.za"),),
+                            "all planned works that might affect Ward 17",
+                            _ward_curry_pot("17")),
+
+    # Ward 18
+    ServiceAlertEmailConfig("current", False, "v1", EMAIL_COLS,
+                            (("Cllr Kopman", "Ntomboxolo.Kopman@capetown.gov.za"),),
+                            "all unplanned alerts that might affect Ward 18",
+                            _ward_curry_pot("18")),
+    ServiceAlertEmailConfig("current", True, "v1", EMAIL_COLS,
+                            (("Cllr Kopman", "Ntomboxolo.Kopman@capetown.gov.za"),),
+                            "all planned works that might affect Ward 18",
+                            _ward_curry_pot("18")),
+
+    # Ward 19
+    ServiceAlertEmailConfig("current", False, "v1", EMAIL_COLS,
+                            (("Cllr Sawant", "ebrahim.sawant@capetown.gov.za"),),
+                            "all unplanned alerts that might affect Ward 19",
+                            _ward_curry_pot("19")),
+    ServiceAlertEmailConfig("current", True, "v1", EMAIL_COLS,
+                            (("Cllr Sawant", "ebrahim.sawant@capetown.gov.za"),),
+                            "all planned works that might affect Ward 19",
+                            _ward_curry_pot("19")),
+
+    # Ward 20
+    ServiceAlertEmailConfig("current", False, "v1", EMAIL_COLS,
+                            (("Cllr Masiu", "DineoZandile.Masiu@capetown.gov.za"),),
+                            "all unplanned alerts that might affect Ward 20",
+                            _ward_curry_pot("20")),
+    ServiceAlertEmailConfig("current", True, "v1", EMAIL_COLS,
+                            (("Cllr Masiu", "DineoZandile.Masiu@capetown.gov.za"),),
+                            "all planned works that might affect Ward 20",
+                            _ward_curry_pot("20")),
+
     # Ward 21
     ServiceAlertEmailConfig("current", False, "v1", EMAIL_COLS,
                             (("Cllr Terblanche", "hendri.terblanche@capetown.gov.za"),),
@@ -172,6 +395,97 @@ SA_EMAIL_CONFIGS = [
                             (("Cllr Terblanche", "hendri.terblanche@capetown.gov.za"),),
                             "all planned works that might affect Ward 21",
                             _ward_curry_pot("21")),
+
+    # Ward 22
+    ServiceAlertEmailConfig("current", False, "v1", EMAIL_COLS,
+                            (("Cllr Martlow", "johanna.martlow@capetown.gov.za"),),
+                            "all unplanned alerts that might affect Ward 22",
+                            _ward_curry_pot("22")),
+    ServiceAlertEmailConfig("current", True, "v1", EMAIL_COLS,
+                            (("Cllr Martlow", "johanna.martlow@capetown.gov.za"),),
+                            "all planned works that might affect Ward 22",
+                            _ward_curry_pot("22")),
+
+    # Ward 23
+    ServiceAlertEmailConfig("current", False, "v1", EMAIL_COLS,
+                            (("Cllr Swart", "paul.swart@capetown.gov.za"),),
+                            "all unplanned alerts that might affect Ward 23",
+                            _ward_curry_pot("23")),
+    ServiceAlertEmailConfig("current", True, "v1", EMAIL_COLS,
+                            (("Cllr Swart", "paul.swart@capetown.gov.za"),),
+                            "all planned works that might affect Ward 23",
+                            _ward_curry_pot("23")),
+
+    # Ward 24
+    ServiceAlertEmailConfig("current", False, "v1", EMAIL_COLS,
+                            (("Cllr Tause", "Phumla.Tause@capetown.gov.za"),),
+                            "all unplanned alerts that might affect Ward 24",
+                            _ward_curry_pot("24")),
+    ServiceAlertEmailConfig("current", True, "v1", EMAIL_COLS,
+                            (("Cllr Tause", "Phumla.Tause@capetown.gov.za"),),
+                            "all planned works that might affect Ward 24",
+                            _ward_curry_pot("24")),
+
+    # Ward 25
+    ServiceAlertEmailConfig("current", False, "v1", EMAIL_COLS,
+                            (("Cllr Reenen", "Beverley.vanReenen@capetown.gov.za"),),
+                            "all unplanned alerts that might affect Ward 25",
+                            _ward_curry_pot("25")),
+    ServiceAlertEmailConfig("current", True, "v1", EMAIL_COLS,
+                            (("Cllr Reenen", "Beverley.vanReenen@capetown.gov.za"),),
+                            "all planned works that might affect Ward 25",
+                            _ward_curry_pot("25")),
+
+    # Ward 26
+    ServiceAlertEmailConfig("current", False, "v1", EMAIL_COLS,
+                            (("Cllr Walker", "franchesca.walker@capetown.gov.za"),),
+                            "all unplanned alerts that might affect Ward 26",
+                            _ward_curry_pot("26")),
+    ServiceAlertEmailConfig("current", True, "v1", EMAIL_COLS,
+                            (("Cllr Walker", "franchesca.walker@capetown.gov.za"),),
+                            "all planned works that might affect Ward 26",
+                            _ward_curry_pot("26")),
+
+    # Ward 27
+    ServiceAlertEmailConfig("current", False, "v1", EMAIL_COLS,
+                            (("Cllr Rensburg", "Cecile.JansevanRensburg@capetown.gov.za"),),
+                            "all unplanned alerts that might affect Ward 27",
+                            _ward_curry_pot("27")),
+    ServiceAlertEmailConfig("current", True, "v1", EMAIL_COLS,
+                            (("Cllr Rensburg", "Cecile.JansevanRensburg@capetown.gov.za"),),
+                            "all planned works that might affect Ward 27",
+                            _ward_curry_pot("27")),
+
+    # Ward 28
+    ServiceAlertEmailConfig("current", False, "v1", EMAIL_COLS,
+                            (("Cllr Jordaan", "Chris.Jordaan@capetown.gov.za"),),
+                            "all unplanned alerts that might affect Ward 28",
+                            _ward_curry_pot("28")),
+    ServiceAlertEmailConfig("current", True, "v1", EMAIL_COLS,
+                            (("Cllr Jordaan", "Chris.Jordaan@capetown.gov.za"),),
+                            "all planned works that might affect Ward 28",
+                            _ward_curry_pot("28")),
+
+    # Ward 29
+    ServiceAlertEmailConfig("current", False, "v1", EMAIL_COLS,
+                            (("Cllr Lightburn", "allister.lightburn@capetown.gov.za"),),
+                            "all unplanned alerts that might affect Ward 29",
+                            _ward_curry_pot("29")),
+    ServiceAlertEmailConfig("current", True, "v1", EMAIL_COLS,
+                            (("Cllr Lightburn", "allister.lightburn@capetown.gov.za"),),
+                            "all planned works that might affect Ward 29",
+                            _ward_curry_pot("29")),
+
+    # Ward 30
+    ServiceAlertEmailConfig("current", False, "v1", EMAIL_COLS,
+                            (("Cllr DeVos", "Deidree.DeVos@capetown.gov.za"),),
+                            "all unplanned alerts that might affect Ward 30",
+                            _ward_curry_pot("30")),
+    ServiceAlertEmailConfig("current", True, "v1", EMAIL_COLS,
+                            (("Cllr DeVos", "Deidree.DeVos@capetown.gov.za"),),
+                            "all planned works that might affect Ward 30",
+                            _ward_curry_pot("30")),
+
     # Ward 31
     ServiceAlertEmailConfig("current", False, "v1", EMAIL_COLS,
                             (("Ald Thompson", "theresa.thompson@capetown.gov.za"),),
@@ -181,6 +495,17 @@ SA_EMAIL_CONFIGS = [
                             (("Ald Thompson", "theresa.thompson@capetown.gov.za"),),
                             "all planned works that might affect Ward 31",
                             _ward_curry_pot("31")),
+
+    # Ward 32
+    ServiceAlertEmailConfig("current", False, "v1", EMAIL_COLS,
+                            (("Cllr Raise", "moosa.raise@capetown.gov.za"),),
+                            "all unplanned alerts that might affect Ward 32",
+                            _ward_curry_pot("32")),
+    ServiceAlertEmailConfig("current", True, "v1", EMAIL_COLS,
+                            (("Cllr Raise", "moosa.raise@capetown.gov.za"),),
+                            "all planned works that might affect Ward 32",
+                            _ward_curry_pot("32")),
+
     # Ward 33
     ServiceAlertEmailConfig("current", False, "v1", EMAIL_COLS,
                             (("Cllr Somdaka", "Lungisa.Somdaka@capetown.gov.za"),),
@@ -190,6 +515,7 @@ SA_EMAIL_CONFIGS = [
                             (("Cllr Somdaka", "Lungisa.Somdaka@capetown.gov.za"),),
                             "all planned works that might affect Ward 33",
                             _ward_curry_pot("33")),
+
     # Ward 34
     ServiceAlertEmailConfig("current", False, "v1", EMAIL_COLS,
                             (("Cllr Gadeni", "Melikhaya.Gadeni@capetown.gov.za"),),
@@ -199,6 +525,7 @@ SA_EMAIL_CONFIGS = [
                             (("Cllr Gadeni", "Melikhaya.Gadeni@capetown.gov.za"),),
                             "all planned works that might affect Ward 34",
                             _ward_curry_pot("34")),
+
     # Ward 35
     ServiceAlertEmailConfig("current", False, "v1", EMAIL_COLS,
                             (("Cllr Chitha", "Mboniswa.Chitha@capetown.gov.za"),),
@@ -208,6 +535,7 @@ SA_EMAIL_CONFIGS = [
                             (("Cllr Chitha", "Mboniswa.Chitha@capetown.gov.za"),),
                             "all planned works that might affect Ward 35",
                             _ward_curry_pot("35")),
+
     # Ward 36
     ServiceAlertEmailConfig("current", False, "v1", EMAIL_COLS,
                             (("Cllr Ntshweza", "Nceba.Ntshweza@capetown.gov.za"),),
@@ -217,6 +545,7 @@ SA_EMAIL_CONFIGS = [
                             (("Cllr Ntshweza", "Nceba.Ntshweza@capetown.gov.za"),),
                             "all planned works that might affect Ward 36",
                             _ward_curry_pot("36")),
+
     # Ward 37
     ServiceAlertEmailConfig("current", False, "v1", EMAIL_COLS,
                             (("Cllr Martin", "Lionel.Martin@capetown.gov.za"),),
@@ -226,6 +555,7 @@ SA_EMAIL_CONFIGS = [
                             (("Cllr Martin", "Lionel.Martin@capetown.gov.za"),),
                             "all planned works that might affect Ward 37",
                             _ward_curry_pot("37")),
+
     # Ward 38
     ServiceAlertEmailConfig("current", False, "v1", EMAIL_COLS,
                             (("Cllr Zumana", "Suzanne.Zumana@capetown.gov.za"),),
@@ -235,6 +565,7 @@ SA_EMAIL_CONFIGS = [
                             (("Cllr Zumana", "Suzanne.Zumana@capetown.gov.za"),),
                             "all planned works that might affect Ward 38",
                             _ward_curry_pot("38")),
+
     # Ward 39
     ServiceAlertEmailConfig("current", False, "v1", EMAIL_COLS,
                             (("Cllr Mjuza", "Thembinkosi.Mjuza@capetown.gov.za"),),
@@ -244,6 +575,7 @@ SA_EMAIL_CONFIGS = [
                             (("Cllr Mjuza", "Thembinkosi.Mjuza@capetown.gov.za"),),
                             "all planned works that might affect Ward 39",
                             _ward_curry_pot("39")),
+
     # Ward 40
     ServiceAlertEmailConfig("current", False, "v1", EMAIL_COLS,
                             (("Cllr Ngcombolo", "bongani.ngcombolo@capetown.gov.za"),),
@@ -253,6 +585,7 @@ SA_EMAIL_CONFIGS = [
                             (("Cllr Ngcombolo", "bongani.ngcombolo@capetown.gov.za"),),
                             "all planned works that might affect Ward 40",
                             _ward_curry_pot("40")),
+
     # Ward 41
     ServiceAlertEmailConfig("current", False, "v1", EMAIL_COLS,
                             (("Cllr Sonyoka", "Lindile.Sonyoka@capetown.gov.za"),),
@@ -262,6 +595,7 @@ SA_EMAIL_CONFIGS = [
                             (("Cllr Sonyoka", "Lindile.Sonyoka@capetown.gov.za"),),
                             "all planned works that might affect Ward 41",
                             _ward_curry_pot("41")),
+
     # Ward 42
     ServiceAlertEmailConfig("current", False, "v1", EMAIL_COLS,
                             (("Cllr Esau", "Charles.Esau@capetown.gov.za"),),
@@ -271,6 +605,7 @@ SA_EMAIL_CONFIGS = [
                             (("Cllr Esau", "Charles.Esau@capetown.gov.za"),),
                             "all planned works that might affect Ward 42",
                             _ward_curry_pot("42")),
+
     # Ward 43
     ServiceAlertEmailConfig("current", False, "v1", EMAIL_COLS,
                             (("Cllr Jansen", "EltonEnrique.Jansen@capetown.gov.za"),),
@@ -280,6 +615,7 @@ SA_EMAIL_CONFIGS = [
                             (("Cllr Jansen", "EltonEnrique.Jansen@capetown.gov.za"),),
                             "all planned works that might affect Ward 43",
                             _ward_curry_pot("43")),
+
     # Ward 44
     ServiceAlertEmailConfig("current", False, "v1", EMAIL_COLS,
                             (("Cllr Moses", "Anthony.Moses@capetown.gov.za"),),
@@ -289,6 +625,7 @@ SA_EMAIL_CONFIGS = [
                             (("Cllr Moses", "Anthony.Moses@capetown.gov.za"),),
                             "all planned works that might affect Ward 44",
                             _ward_curry_pot("44")),
+
     # Ward 45
     ServiceAlertEmailConfig("current", False, "v1", EMAIL_COLS,
                             (("Cllr Marr", "Mandy.Marr@capetown.gov.za"),),
@@ -298,6 +635,17 @@ SA_EMAIL_CONFIGS = [
                             (("Cllr Marr", "Mandy.Marr@capetown.gov.za"),),
                             "all planned works that might affect Ward 45",
                             _ward_curry_pot("45")),
+
+    # Ward 46
+    ServiceAlertEmailConfig("current", False, "v1", EMAIL_COLS,
+                            (("Cllr Cassiem", "Aslam.Cassiem@capetown.gov.za"),),
+                            "all unplanned alerts that might affect Ward 46",
+                            _ward_curry_pot("46")),
+    ServiceAlertEmailConfig("current", True, "v1", EMAIL_COLS,
+                            (("Cllr Cassiem", "Aslam.Cassiem@capetown.gov.za"),),
+                            "all planned works that might affect Ward 46",
+                            _ward_curry_pot("46")),
+
     # Ward 47
     ServiceAlertEmailConfig("current", False, "v1", EMAIL_COLS,
                             (("Ald van der Rheede", "Antonio.VanDerRheede@capetown.gov.za"),),
@@ -307,6 +655,27 @@ SA_EMAIL_CONFIGS = [
                             (("Ald van der Rheede", "Antonio.VanDerRheede@capetown.gov.za"),),
                             "all planned works that might affect Ward 47",
                             _ward_curry_pot("47")),
+
+    # Ward 48
+    ServiceAlertEmailConfig("current", False, "v1", EMAIL_COLS,
+                            (("Cllr Badroodien", "zahid.badroodien@capetown.gov.za"),),
+                            "all unplanned alerts that might affect Ward 48",
+                            _ward_curry_pot("48")),
+    ServiceAlertEmailConfig("current", True, "v1", EMAIL_COLS,
+                            (("Cllr Badroodien", "zahid.badroodien@capetown.gov.za"),),
+                            "all planned works that might affect Ward 48",
+                            _ward_curry_pot("48")),
+
+    # Ward 49
+    ServiceAlertEmailConfig("current", False, "v1", EMAIL_COLS,
+                            (("Cllr Adams", "rashid.adams@capetown.gov.za"),),
+                            "all unplanned alerts that might affect Ward 49",
+                            _ward_curry_pot("49")),
+    ServiceAlertEmailConfig("current", True, "v1", EMAIL_COLS,
+                            (("Cllr Adams", "rashid.adams@capetown.gov.za"),),
+                            "all planned works that might affect Ward 49",
+                            _ward_curry_pot("49")),
+
     # Ward 50
     ServiceAlertEmailConfig("current", False, "v1", EMAIL_COLS,
                             (("Cllr McKenzie", "angus.mckenzie@capetown.gov.za"),),
@@ -316,15 +685,37 @@ SA_EMAIL_CONFIGS = [
                             (("Cllr McKenzie", "angus.mckenzie@capetown.gov.za"),),
                             "all planned works that might affect Ward 50",
                             _ward_curry_pot("50")),
+
+    # Ward 51
+    ServiceAlertEmailConfig("current", False, "v1", EMAIL_COLS,
+                            (("Cllr Phakade", "Lwazi.Phakade@capetown.gov.za"),),
+                            "all unplanned alerts that might affect Ward 51",
+                            _ward_curry_pot("51")),
+    ServiceAlertEmailConfig("current", True, "v1", EMAIL_COLS,
+                            (("Cllr Phakade", "Lwazi.Phakade@capetown.gov.za"),),
+                            "all planned works that might affect Ward 51",
+                            _ward_curry_pot("51")),
+
     # Ward 52
     ServiceAlertEmailConfig("current", False, "v1", EMAIL_COLS,
                             (("Cllr Nyamakazi", "Thembelani.Nyamakazi@capetown.gov.za"),),
                             "all unplanned alerts that might affect Ward 52",
                             _ward_curry_pot("52")),
     ServiceAlertEmailConfig("current", True, "v1", EMAIL_COLS,
-                            (("Cllr Nyamakazi", "angus.mckenzie@capetown.gov.za"),),
+                            (("Cllr Nyamakazi", "Thembelani.Nyamakazi@capetown.gov.za"),),
                             "all planned works that might affect Ward 52",
                             _ward_curry_pot("52")),
+
+    # Ward 53
+    ServiceAlertEmailConfig("current", False, "v1", EMAIL_COLS,
+                            (("Cllr Davids", "Riad.Davids@capetown.gov.za"),),
+                            "all unplanned alerts that might affect Ward 53",
+                            _ward_curry_pot("53")),
+    ServiceAlertEmailConfig("current", True, "v1", EMAIL_COLS,
+                            (("Cllr Davids", "Riad.Davids@capetown.gov.za"),),
+                            "all planned works that might affect Ward 53",
+                            _ward_curry_pot("53")),
+
     # Ward 54
     ServiceAlertEmailConfig("current", False, "v1", EMAIL_COLS,
                             (("Cllr Jowell", "nicola.jowell@capetown.gov.za"),),
@@ -334,6 +725,27 @@ SA_EMAIL_CONFIGS = [
                             (("Cllr Jowell", "nicola.jowell@capetown.gov.za"),),
                             "all planned works that might affect Ward 54",
                             _ward_curry_pot("54")),
+
+    # Ward 55
+    ServiceAlertEmailConfig("current", False, "v1", EMAIL_COLS,
+                            (("Cllr Ah-Sing", "Fabian.AhSing@capetown.gov.za"),),
+                            "all unplanned alerts that might affect Ward 55",
+                            _ward_curry_pot("55")),
+    ServiceAlertEmailConfig("current", True, "v1", EMAIL_COLS,
+                            (("Cllr Ah-Sing", "Fabian.AhSing@capetown.gov.za"),),
+                            "all planned works that might affect Ward 55",
+                            _ward_curry_pot("55")),
+
+    # Ward 56
+    ServiceAlertEmailConfig("current", False, "v1", EMAIL_COLS,
+                            (("Cllr Steenberg", "Cheslyn.Steenberg@capetown.gov.za"),),
+                            "all unplanned alerts that might affect Ward 56",
+                            _ward_curry_pot("56")),
+    ServiceAlertEmailConfig("current", True, "v1", EMAIL_COLS,
+                            (("Cllr Steenberg", "Cheslyn.Steenberg@capetown.gov.za"),),
+                            "all planned works that might affect Ward 56",
+                            _ward_curry_pot("56")),
+
     # Ward 57
     ServiceAlertEmailConfig("current", False, "v1", EMAIL_COLS,
                             (("Cllr Mohamed", "Yusuf.Mohamed@capetown.gov.za"),),
@@ -343,6 +755,7 @@ SA_EMAIL_CONFIGS = [
                             (("Cllr Mohamed", "Yusuf.Mohamed@capetown.gov.za"),),
                             "all planned works that might affect Ward 57",
                             _ward_curry_pot("57")),
+
     # Ward 58
     ServiceAlertEmailConfig("current", False, "v1", EMAIL_COLS,
                             (("Cllr Hill", "Richard.Hill@capetown.gov.za"),),
@@ -352,6 +765,7 @@ SA_EMAIL_CONFIGS = [
                             (("Cllr Hill", "Richard.Hill@capetown.gov.za"),),
                             "all planned works that might affect Ward 58",
                             _ward_curry_pot("58")),
+
     # Ward 59
     ServiceAlertEmailConfig("current", False, "v1", EMAIL_COLS,
                             (("Cllr Manuel", "Mikhail.Manuel@capetown.gov.za"),),
@@ -361,6 +775,7 @@ SA_EMAIL_CONFIGS = [
                             (("Cllr Manuel", "Mikhail.Manuel@capetown.gov.za"),),
                             "all planned works that might affect Ward 59",
                             _ward_curry_pot("59")),
+
     # Ward 60
     ServiceAlertEmailConfig("current", False, "v1", EMAIL_COLS,
                             (("Cllr Kleinschmidt", "mark.kleinschmidt@capetown.gov.za"),),
@@ -370,6 +785,7 @@ SA_EMAIL_CONFIGS = [
                             (("Cllr Kleinschmidt", "mark.kleinschmidt@capetown.gov.za"),),
                             "all planned works that might affect Ward 60",
                             _ward_curry_pot("60")),
+
     # Ward 61
     ServiceAlertEmailConfig("current", False, "v1", EMAIL_COLS,
                             (("Cllr Liell-Cock", "Simon.LiellCock@capetown.gov.za"),),
@@ -379,6 +795,7 @@ SA_EMAIL_CONFIGS = [
                             (("Cllr Liell-Cock", "Simon.LiellCock@capetown.gov.za"),),
                             "all planned works that might affect Ward 61",
                             _ward_curry_pot("61")),
+
     # Ward 62
     ServiceAlertEmailConfig("current", False, "v1", EMAIL_COLS,
                             (("Cllr Langenhoven", "Emile.Langenhoven@capetown.gov.za"),),
@@ -388,6 +805,7 @@ SA_EMAIL_CONFIGS = [
                             (("Cllr Langenhoven", "Emile.Langenhoven@capetown.gov.za"),),
                             "all planned works that might affect Ward 62",
                             _ward_curry_pot("62")),
+
     # Ward 63
     ServiceAlertEmailConfig("current", False, "v1", EMAIL_COLS,
                             (("Cllr Siebritz", "Carmen.Siebritz@capetown.gov.za"),),
@@ -397,6 +815,7 @@ SA_EMAIL_CONFIGS = [
                             (("Cllr Siebritz", "Carmen.Siebritz@capetown.gov.za"),),
                             "all planned works that might affect Ward 63",
                             _ward_curry_pot("63")),
+
     # Ward 64
     ServiceAlertEmailConfig("current", False, "v1", EMAIL_COLS,
                             (("Cllr Sherry", "Izabel.Sherry@capetown.gov.za"),),
@@ -406,6 +825,7 @@ SA_EMAIL_CONFIGS = [
                             (("Cllr Sherry", "Izabel.Sherry@capetown.gov.za"),),
                             "all planned works that might affect Ward 64",
                             _ward_curry_pot("64")),
+
     # Ward 65
     ServiceAlertEmailConfig("current", False, "v1", EMAIL_COLS,
                             (("Cllr Nelson", "Donovan.Nelson@capetown.gov.za"),),
@@ -415,6 +835,7 @@ SA_EMAIL_CONFIGS = [
                             (("Cllr Nelson", "Donovan.Nelson@capetown.gov.za"),),
                             "all planned works that might affect Ward 65",
                             _ward_curry_pot("65")),
+
     # Ward 66
     ServiceAlertEmailConfig("current", False, "v1", EMAIL_COLS,
                             (("Cllr Akim", "william.akim@capetown.gov.za"),),
@@ -424,6 +845,7 @@ SA_EMAIL_CONFIGS = [
                             (("Cllr Akim", "william.akim@capetown.gov.za"),),
                             "all planned works that might affect Ward 66",
                             _ward_curry_pot("66")),
+
     # Ward 67
     ServiceAlertEmailConfig("current", False, "v1", EMAIL_COLS,
                             (("Cllr Gordon", "Gerry.Gordon@capetown.gov.za"),),
@@ -433,6 +855,7 @@ SA_EMAIL_CONFIGS = [
                             (("Cllr Gordon", "Gerry.Gordon@capetown.gov.za"),),
                             "all planned works that might affect Ward 67",
                             _ward_curry_pot("67")),
+
     # Ward 68
     ServiceAlertEmailConfig("current", False, "v1", EMAIL_COLS,
                             (("Cllr Petersen", "marita.petersen@capetown.gov.za"),),
@@ -442,6 +865,7 @@ SA_EMAIL_CONFIGS = [
                             (("Cllr Petersen", "marita.petersen@capetown.gov.za"),),
                             "all planned works that might affect Ward 68",
                             _ward_curry_pot("68")),
+
     # Ward 69
     ServiceAlertEmailConfig("current", False, "v1", EMAIL_COLS,
                             (("Cllr Francke", "Patricia.Francke@capetown.gov.za"),),
@@ -451,6 +875,17 @@ SA_EMAIL_CONFIGS = [
                             (("Cllr Francke", "Patricia.Francke@capetown.gov.za"),),
                             "all planned works that might affect Ward 69",
                             _ward_curry_pot("69")),
+
+    # Ward 70
+    ServiceAlertEmailConfig("current", False, "v1", EMAIL_COLS,
+                            (("Cllr Viljoen", "Ronel.Viljoen@capetown.gov.za"),),
+                            "all unplanned alerts that might affect Ward 70",
+                            _ward_curry_pot("70")),
+    ServiceAlertEmailConfig("current", True, "v1", EMAIL_COLS,
+                            (("Cllr Viljoen", "Ronel.Viljoen@capetown.gov.za"),),
+                            "all planned works that might affect Ward 70",
+                            _ward_curry_pot("70")),
+
     # Ward 71
     ServiceAlertEmailConfig("current", False, "v1", EMAIL_COLS,
                             (("Cllr Franklin", "Carolynne.Franklin@capetown.gov.za"),),
@@ -460,6 +895,7 @@ SA_EMAIL_CONFIGS = [
                             (("Cllr Franklin", "Carolynne.Franklin@capetown.gov.za"),),
                             "all planned works that might affect Ward 71",
                             _ward_curry_pot("71")),
+
     # Ward 72
     ServiceAlertEmailConfig("current", False, "v1", EMAIL_COLS,
                             (("Cllr Southgate", "Kevin.Southgate@capetown.gov.za"),),
@@ -469,6 +905,7 @@ SA_EMAIL_CONFIGS = [
                             (("Cllr Southgate", "Kevin.Southgate@capetown.gov.za"),),
                             "all planned works that might affect Ward 72",
                             _ward_curry_pot("72")),
+
     # Ward 73
     ServiceAlertEmailConfig("current", False, "v1", EMAIL_COLS,
                             (("Ald Andrews", "Eddie.Andrews@capetown.gov.za"),),
@@ -478,6 +915,7 @@ SA_EMAIL_CONFIGS = [
                             (("Ald Andrews", "Eddie.Andrews@capetown.gov.za"),),
                             "all planned works that might affect Ward 73",
                             _ward_curry_pot("73")),
+
     # Ward 74
     ServiceAlertEmailConfig("current", False, "v1", EMAIL_COLS,
                             (("Cllr Quintas", "roberto.quintas@capetown.gov.za"),),
@@ -487,6 +925,7 @@ SA_EMAIL_CONFIGS = [
                             (("Cllr Quintas", "roberto.quintas@capetown.gov.za"),),
                             "all planned works that might affect Ward 74",
                             _ward_curry_pot("74")),
+
     # Ward 75
     ServiceAlertEmailConfig("current", False, "v1", EMAIL_COLS,
                             (("Cllr Woodman", "joan.woodman@capetown.gov.za"),),
@@ -496,6 +935,7 @@ SA_EMAIL_CONFIGS = [
                             (("Cllr Woodman", "joan.woodman@capetown.gov.za"),),
                             "all planned works that might affect Ward 75",
                             _ward_curry_pot("75")),
+
     # Ward 76
     ServiceAlertEmailConfig("current", False, "v1", EMAIL_COLS,
                             (("Cllr Plaatjies", "Avron.Plaatjies@capetown.gov.za"),),
@@ -505,6 +945,7 @@ SA_EMAIL_CONFIGS = [
                             (("Cllr Plaatjies", "Avron.Plaatjies@capetown.gov.za"),),
                             "all planned works that might affect Ward 76",
                             _ward_curry_pot("76")),
+
     # Ward 77
     ServiceAlertEmailConfig("current", False, "v1", EMAIL_COLS,
                             (("Cllr Higham", "Francine.Higham@capetown.gov.za"),),
@@ -514,6 +955,7 @@ SA_EMAIL_CONFIGS = [
                             (("Cllr Higham", "Francine.Higham@capetown.gov.za"),),
                             "all planned works that might affect Ward 77",
                             _ward_curry_pot("77")),
+
     # Ward 78
     ServiceAlertEmailConfig("current", False, "v1", EMAIL_COLS,
                             (("Cllr Timm", "Goawa.Timm@capetown.gov.za"),),
@@ -523,6 +965,7 @@ SA_EMAIL_CONFIGS = [
                             (("Cllr Timm", "Goawa.Timm@capetown.gov.za"),),
                             "all planned works that might affect Ward 78",
                             _ward_curry_pot("78")),
+
     # Ward 79
     ServiceAlertEmailConfig("current", False, "v1", EMAIL_COLS,
                             (("Cllr Christians", "Daniel.Christians@capetown.gov.za"),),
@@ -532,6 +975,7 @@ SA_EMAIL_CONFIGS = [
                             (("Cllr Christians", "Daniel.Christians@capetown.gov.za"),),
                             "all planned works that might affect Ward 79",
                             _ward_curry_pot("79")),
+
     # Ward 80
     ServiceAlertEmailConfig("current", False, "v1", EMAIL_COLS,
                             (("Cllr Payiya", "Bennet.Payiya@capetown.gov.za"),),
@@ -541,6 +985,7 @@ SA_EMAIL_CONFIGS = [
                             (("Cllr Payiya", "Bennet.Payiya@capetown.gov.za"),),
                             "all planned works that might affect Ward 80",
                             _ward_curry_pot("80")),
+
     # Ward 81
     ServiceAlertEmailConfig("current", False, "v1", EMAIL_COLS,
                             (("Cllr Potts", "Ashley.Potts@capetown.gov.za"),),
@@ -561,6 +1006,56 @@ SA_EMAIL_CONFIGS = [
                             "all planned works that might affect Ward 82",
                             _ward_curry_pot("82")),
 
+    # Ward 83
+    ServiceAlertEmailConfig("current", False, "v1", EMAIL_COLS,
+                            (("Cllr Punt", "carl.punt@capetown.gov.za"),),
+                            "all unplanned alerts that might affect Ward 83",
+                            _ward_curry_pot("83")),
+    ServiceAlertEmailConfig("current", True, "v1", EMAIL_COLS,
+                            (("Cllr Punt", "carl.punt@capetown.gov.za"),),
+                            "all planned works that might affect Ward 83",
+                            _ward_curry_pot("83")),
+
+    # Ward 84
+    ServiceAlertEmailConfig("current", False, "v1", EMAIL_COLS,
+                            (("Cllr McFarlane", "Norman.McFarlane@capetown.gov.za"),),
+                            "all unplanned alerts that might affect Ward 84",
+                            _ward_curry_pot("84")),
+    ServiceAlertEmailConfig("current", True, "v1", EMAIL_COLS,
+                            (("Cllr McFarlane", "Norman.McFarlane@capetown.gov.za"),),
+                            "all planned works that might affect Ward 84",
+                            _ward_curry_pot("84")),
+
+    # Ward 85
+    ServiceAlertEmailConfig("current", False, "v1", EMAIL_COLS,
+                            (("Cllr Cerfontein", "Chantal.Cerfontein@capetown.gov.za"),),
+                            "all unplanned alerts that might affect Ward 85",
+                            _ward_curry_pot("85")),
+    ServiceAlertEmailConfig("current", True, "v1", EMAIL_COLS,
+                            (("Cllr Cerfontein", "Chantal.Cerfontein@capetown.gov.za"),),
+                            "all planned works that might affect Ward 85",
+                            _ward_curry_pot("85")),
+
+    # Ward 86
+    ServiceAlertEmailConfig("current", False, "v1", EMAIL_COLS,
+                            (("Cllr Diniso", "Xolani.Diniso@capetown.gov.za"),),
+                            "all unplanned alerts that might affect Ward 86",
+                            _ward_curry_pot("86")),
+    ServiceAlertEmailConfig("current", True, "v1", EMAIL_COLS,
+                            (("Cllr Diniso", "Xolani.Diniso@capetown.gov.za"),),
+                            "all planned works that might affect Ward 86",
+                            _ward_curry_pot("86")),
+
+    # Ward 87
+    ServiceAlertEmailConfig("current", False, "v1", EMAIL_COLS,
+                            (("Cllr Kama", "Khayalethu.Kama@capetown.gov.za"),),
+                            "all unplanned alerts that might affect Ward 87",
+                            _ward_curry_pot("87")),
+    ServiceAlertEmailConfig("current", True, "v1", EMAIL_COLS,
+                            (("Cllr Kama", "Khayalethu.Kama@capetown.gov.za"),),
+                            "all planned works that might affect Ward 87",
+                            _ward_curry_pot("87")),
+
     # Ward 88
     ServiceAlertEmailConfig("current", False, "v1", EMAIL_COLS,
                             (("Cllr Sophazi", "Zukisani.Sophazi@capetown.gov.za"),),
@@ -570,6 +1065,16 @@ SA_EMAIL_CONFIGS = [
                             (("Cllr Sophazi", "Zukisani.Sophazi@capetown.gov.za"),),
                             "all planned works that might affect Ward 88",
                             _ward_curry_pot("88")),
+
+    # Ward 89
+    ServiceAlertEmailConfig("current", False, "v1", EMAIL_COLS,
+                            (("Cllr Gxasheka", "Kayalethu.Gxasheka@capetown.gov.za"),),
+                            "all unplanned alerts that might affect Ward 89",
+                            _ward_curry_pot("89")),
+    ServiceAlertEmailConfig("current", True, "v1", EMAIL_COLS,
+                            (("Cllr Gxasheka", "Kayalethu.Gxasheka@capetown.gov.za"),),
+                            "all planned works that might affect Ward 89",
+                            _ward_curry_pot("89")),
 
     # Ward 90
     ServiceAlertEmailConfig("current", False, "v1", EMAIL_COLS,
@@ -581,6 +1086,16 @@ SA_EMAIL_CONFIGS = [
                             "all planned works that might affect Ward 90",
                             _ward_curry_pot("90")),
 
+    # Ward 91
+    ServiceAlertEmailConfig("current", False, "v1", EMAIL_COLS,
+                            (("Cllr Mpengezi", "thando.mpengezi@capetown.gov.za"),),
+                            "all unplanned alerts that might affect Ward 91",
+                            _ward_curry_pot("91")),
+    ServiceAlertEmailConfig("current", True, "v1", EMAIL_COLS,
+                            (("Cllr Mpengezi", "thando.mpengezi@capetown.gov.za"),),
+                            "all planned works that might affect Ward 91",
+                            _ward_curry_pot("91")),
+
     # Ward 92
     ServiceAlertEmailConfig("current", False, "v1", EMAIL_COLS,
                             (("Cllr Adonis", "Norman.Adonis@capetown.gov.za"),),
@@ -590,6 +1105,66 @@ SA_EMAIL_CONFIGS = [
                             (("Cllr Adonis", "Norman.Adonis@capetown.gov.za"),),
                             "all planned works that might affect Ward 92",
                             _ward_curry_pot("92")),
+
+    # Ward 93
+    ServiceAlertEmailConfig("current", False, "v1", EMAIL_COLS,
+                            (("Cllr Pimpi", "thando.pimpi@capetown.gov.za"),),
+                            "all unplanned alerts that might affect Ward 93",
+                            _ward_curry_pot("93")),
+    ServiceAlertEmailConfig("current", True, "v1", EMAIL_COLS,
+                            (("Cllr Pimpi", "thando.pimpi@capetown.gov.za"),),
+                            "all planned works that might affect Ward 93",
+                            _ward_curry_pot("93")),
+
+    # Ward 94
+    ServiceAlertEmailConfig("current", False, "v1", EMAIL_COLS,
+                            (("Cllr Peter", "xolisa.peter@capetown.gov.za"),),
+                            "all unplanned alerts that might affect Ward 94",
+                            _ward_curry_pot("94")),
+    ServiceAlertEmailConfig("current", True, "v1", EMAIL_COLS,
+                            (("Cllr Peter", "xolisa.peter@capetown.gov.za"),),
+                            "all planned works that might affect Ward 94",
+                            _ward_curry_pot("94")),
+
+    # Ward 95
+    ServiceAlertEmailConfig("current", False, "v1", EMAIL_COLS,
+                            (("Cllr Tetani", "Ayanda.Tetani@capetown.gov.za"),),
+                            "all unplanned alerts that might affect Ward 95",
+                            _ward_curry_pot("95")),
+    ServiceAlertEmailConfig("current", True, "v1", EMAIL_COLS,
+                            (("Cllr Tetani", "Ayanda.Tetani@capetown.gov.za"),),
+                            "all planned works that might affect Ward 95",
+                            _ward_curry_pot("95")),
+
+    # Ward 96
+    ServiceAlertEmailConfig("current", False, "v1", EMAIL_COLS,
+                            (("Cllr Mbiza", "Lucky.Mbiza@capetown.gov.za"),),
+                            "all unplanned alerts that might affect Ward 96",
+                            _ward_curry_pot("96")),
+    ServiceAlertEmailConfig("current", True, "v1", EMAIL_COLS,
+                            (("Cllr Mbiza", "Lucky.Mbiza@capetown.gov.za"),),
+                            "all planned works that might affect Ward 96",
+                            _ward_curry_pot("96")),
+
+    # Ward 97
+    ServiceAlertEmailConfig("current", False, "v1", EMAIL_COLS,
+                            (("Cllr Mkutswana", "Mthwalo.Mkutswana@capetown.gov.za"),),
+                            "all unplanned alerts that might affect Ward 97",
+                            _ward_curry_pot("97")),
+    ServiceAlertEmailConfig("current", True, "v1", EMAIL_COLS,
+                            (("Cllr Mkutswana", "Mthwalo.Mkutswana@capetown.gov.za"),),
+                            "all planned works that might affect Ward 97",
+                            _ward_curry_pot("97")),
+
+    # Ward 98
+    ServiceAlertEmailConfig("current", False, "v1", EMAIL_COLS,
+                            (("Cllr Gabuza", "Anele.Gabuza@capetown.gov.za"),),
+                            "all unplanned alerts that might affect Ward 98",
+                            _ward_curry_pot("98")),
+    ServiceAlertEmailConfig("current", True, "v1", EMAIL_COLS,
+                            (("Cllr Gabuza", "Anele.Gabuza@capetown.gov.za"),),
+                            "all planned works that might affect Ward 98",
+                            _ward_curry_pot("98")),
 
     # Ward 99
     ServiceAlertEmailConfig("current", False, "v1", EMAIL_COLS,
@@ -601,6 +1176,106 @@ SA_EMAIL_CONFIGS = [
                             "all planned works that might affect Ward 99",
                             _ward_curry_pot("99")),
 
+    # Ward 100
+    ServiceAlertEmailConfig("current", False, "v1", EMAIL_COLS,
+                            (("Cllr Stacey", "Sean.Stacey@capetown.gov.za"),),
+                            "all unplanned alerts that might affect Ward 100",
+                            _ward_curry_pot("100")),
+    ServiceAlertEmailConfig("current", True, "v1", EMAIL_COLS,
+                            (("Cllr Stacey", "Sean.Stacey@capetown.gov.za"),),
+                            "all planned works that might affect Ward 100",
+                            _ward_curry_pot("100")),
+
+    # Ward 101
+    ServiceAlertEmailConfig("current", False, "v1", EMAIL_COLS,
+                            (("Cllr Duka", "Siyabonga.Duka@capetown.gov.za"),),
+                            "all unplanned alerts that might affect Ward 101",
+                            _ward_curry_pot("101")),
+    ServiceAlertEmailConfig("current", True, "v1", EMAIL_COLS,
+                            (("Cllr Duka", "Siyabonga.Duka@capetown.gov.za"),),
+                            "all planned works that might affect Ward 101",
+                            _ward_curry_pot("101")),
+
+    # Ward 102
+    ServiceAlertEmailConfig("current", False, "v1", EMAIL_COLS,
+                            (("Cllr Bresler", "Rhynhardt.Bresler@capetown.gov.za"),),
+                            "all unplanned alerts that might affect Ward 102",
+                            _ward_curry_pot("102")),
+    ServiceAlertEmailConfig("current", True, "v1", EMAIL_COLS,
+                            (("Cllr Bresler", "Rhynhardt.Bresler@capetown.gov.za"),),
+                            "all planned works that might affect Ward 102",
+                            _ward_curry_pot("102")),
+
+    # Ward 103
+    ServiceAlertEmailConfig("current", False, "v1", EMAIL_COLS,
+                            (("Cllr Fourie", "Gerhard.Fourie@capetown.gov.za"),),
+                            "all unplanned alerts that might affect Ward 103",
+                            _ward_curry_pot("103")),
+    ServiceAlertEmailConfig("current", True, "v1", EMAIL_COLS,
+                            (("Cllr Fourie", "Gerhard.Fourie@capetown.gov.za"),),
+                            "all planned works that might affect Ward 103",
+                            _ward_curry_pot("103")),
+
+    # Ward 104
+    ServiceAlertEmailConfig("current", False, "v1", EMAIL_COLS,
+                            (("Cllr Makuwa", "Meisie.Makuwa@capetown.gov.za"),),
+                            "all unplanned alerts that might affect Ward 104",
+                            _ward_curry_pot("104")),
+    ServiceAlertEmailConfig("current", True, "v1", EMAIL_COLS,
+                            (("Cllr Makuwa", "Meisie.Makuwa@capetown.gov.za"),),
+                            "all planned works that might affect Ward 104",
+                            _ward_curry_pot("104")),
+
+    # Ward 105
+    ServiceAlertEmailConfig("current", False, "v1", EMAIL_COLS,
+                            (("Cllr Berry", "Francois.Berry@capetown.gov.za"),),
+                            "all unplanned alerts that might affect Ward 105",
+                            _ward_curry_pot("105")),
+    ServiceAlertEmailConfig("current", True, "v1", EMAIL_COLS,
+                            (("Cllr Berry", "Francois.Berry@capetown.gov.za"),),
+                            "all planned works that might affect Ward 105",
+                            _ward_curry_pot("105")),
+
+    # Ward 106
+    ServiceAlertEmailConfig("current", False, "v1", EMAIL_COLS,
+                            (("Cllr (Luthango)", "Nobanathi.Matutu@capetown.gov.za"),),
+                            "all unplanned alerts that might affect Ward 106",
+                            _ward_curry_pot("106")),
+    ServiceAlertEmailConfig("current", True, "v1", EMAIL_COLS,
+                            (("Cllr (Luthango)", "Nobanathi.Matutu@capetown.gov.za"),),
+                            "all planned works that might affect Ward 106",
+                            _ward_curry_pot("106")),
+
+    # Ward 107
+    ServiceAlertEmailConfig("current", False, "v1", EMAIL_COLS,
+                            (("Cllr Mills", "Jonathan.Mills@capetown.gov.za"),),
+                            "all unplanned alerts that might affect Ward 107",
+                            _ward_curry_pot("107")),
+    ServiceAlertEmailConfig("current", True, "v1", EMAIL_COLS,
+                            (("Cllr Mills", "Jonathan.Mills@capetown.gov.za"),),
+                            "all planned works that might affect Ward 107",
+                            _ward_curry_pot("107")),
+
+    # Ward 108
+    ServiceAlertEmailConfig("current", False, "v1", EMAIL_COLS,
+                            (("Cllr Lombi", "Nkosiphendule.Lombi@capetown.gov.za"),),
+                            "all unplanned alerts that might affect Ward 108",
+                            _ward_curry_pot("108")),
+    ServiceAlertEmailConfig("current", True, "v1", EMAIL_COLS,
+                            (("Cllr Lombi", "Nkosiphendule.Lombi@capetown.gov.za"),),
+                            "all planned works that might affect Ward 108",
+                            _ward_curry_pot("108")),
+
+    # Ward 109
+    ServiceAlertEmailConfig("current", False, "v1", EMAIL_COLS,
+                            (("Cllr Helfrich", "peter.helfrich@capetown.gov.za"),),
+                            "all unplanned alerts that might affect Ward 109",
+                            _ward_curry_pot("109")),
+    ServiceAlertEmailConfig("current", True, "v1", EMAIL_COLS,
+                            (("Cllr Helfrich", "peter.helfrich@capetown.gov.za"),),
+                            "all planned works that might affect Ward 109",
+                            _ward_curry_pot("109")),
+
     # Ward 110
     ServiceAlertEmailConfig("current", False, "v1", EMAIL_COLS,
                             (("Ald Rossouw", "shanen.rossouw@capetown.gov.za"),),
@@ -610,6 +1285,46 @@ SA_EMAIL_CONFIGS = [
                             (("Ald Rossouw", "shanen.rossouw@capetown.gov.za"),),
                             "all planned works that might affect Ward 110",
                             _ward_curry_pot("110")),
+
+    # Ward 111
+    ServiceAlertEmailConfig("current", False, "v1", EMAIL_COLS,
+                            (("Cllr Hansen", "Brenda.Hansen@capetown.gov.za"),),
+                            "all unplanned alerts that might affect Ward 111",
+                            _ward_curry_pot("111")),
+    ServiceAlertEmailConfig("current", True, "v1", EMAIL_COLS,
+                            (("Cllr Hansen", "Brenda.Hansen@capetown.gov.za"),),
+                            "all planned works that might affect Ward 111",
+                            _ward_curry_pot("111")),
+
+    # Ward 112
+    ServiceAlertEmailConfig("current", False, "v1", EMAIL_COLS,
+                            (("Cllr Uys", "Theresa.Uys@capetown.gov.za"),),
+                            "all unplanned alerts that might affect Ward 112",
+                            _ward_curry_pot("112")),
+    ServiceAlertEmailConfig("current", True, "v1", EMAIL_COLS,
+                            (("Cllr Uys", "Theresa.Uys@capetown.gov.za"),),
+                            "all planned works that might affect Ward 112",
+                            _ward_curry_pot("112")),
+
+    # Ward 113
+    ServiceAlertEmailConfig("current", False, "v1", EMAIL_COLS,
+                            (("Cllr Linde", "Susan.VanderLinde@capetown.gov.za"),),
+                            "all unplanned alerts that might affect Ward 113",
+                            _ward_curry_pot("113")),
+    ServiceAlertEmailConfig("current", True, "v1", EMAIL_COLS,
+                            (("Cllr Linde", "Susan.VanderLinde@capetown.gov.za"),),
+                            "all planned works that might affect Ward 113",
+                            _ward_curry_pot("113")),
+
+    # Ward 114
+    ServiceAlertEmailConfig("current", False, "v1", EMAIL_COLS,
+                            (("Cllr Madikane", "Ernest.Madikane@capetown.gov.za"),),
+                            "all unplanned alerts that might affect Ward 114",
+                            _ward_curry_pot("114")),
+    ServiceAlertEmailConfig("current", True, "v1", EMAIL_COLS,
+                            (("Cllr Madikane", "Ernest.Madikane@capetown.gov.za"),),
+                            "all planned works that might affect Ward 114",
+                            _ward_curry_pot("114")),
 
     # Ward 115
     ServiceAlertEmailConfig("current", False, "v1", EMAIL_COLS,
@@ -635,27 +1350,62 @@ SA_EMAIL_CONFIGS = [
     ServiceAlertEmailConfig("current", False, "v1", EMAIL_COLS,
                             (("Rejane", "rejane.alexander@capetown.gov.za"),),
                             "all unplanned alerts that affect Grassy Park",
-                            "(inferred_suburbs.astype('str').str.lower().str.contains('grassy\Wpark') or "
-                            " area.astype('str').str.lower().str.contains('grassy\Wpark'))"),
+                            _area_curry_pot('grassy\Wpark')),
     ServiceAlertEmailConfig("current", True, "v1", EMAIL_COLS,
                             (("Rejane", "rejane.alexander@capetown.gov.za"),),
                             "all planned works that affect Grassy Park",
-                            "(inferred_suburbs.astype('str').str.lower().str.contains('grassy\Wpark') or "
-                            " area.astype('str').str.lower().str.contains('grassy\Wpark'))"),
+                            _area_curry_pot('grassy\Wpark')),
+
+    # Kraaifontein
+    ServiceAlertEmailConfig("current", False, "v1", EMAIL_COLS,
+                            (("Faheem", "Faheem.Sima@capetown.gov.za"),),
+                            "all unplanned alerts that affect Kraaifontein",
+                            _area_curry_pot('kraaifontein')),
+    ServiceAlertEmailConfig("current", True, "v1", EMAIL_COLS,
+                            (("Faheem", "Faheem.Sima@capetown.gov.za"),),
+                            "all planned works that affect Kraaifontein",
+                            _area_curry_pot('kraaifontein')),
+
+    # Parklands
+    ServiceAlertEmailConfig("current", False, "v1", EMAIL_COLS,
+                            (("Zwi", "zwivhuyazwau.sivhabu@capetown.gov.za"),),
+                            "all unplanned alerts that affect Parklands",
+                            _area_curry_pot('parklands')),
+    ServiceAlertEmailConfig("current", True, "v1", EMAIL_COLS,
+                            (("Zwi", "zwivhuyazwau.sivhabu@capetown.gov.za"),),
+                            "all planned works that affect Parklands",
+                            _area_curry_pot('parklands')),
 
     # Somerset West
     ServiceAlertEmailConfig("current", False, "v1", EMAIL_COLS,
                             (("Delyno", "delyno.dutoit@capetown.gov.za"),),
                             "all unplanned alerts that affect Somerset West",
-                            "(inferred_suburbs.astype('str').str.lower().str.contains('somerset\Wwest') or "
-                            " area.astype('str').str.lower().str.contains('somerset\Wwest')) and "
-                            "area_type != 'Citywide'"),
+                            _area_curry_pot('somerset\Wwest')),
     ServiceAlertEmailConfig("current", True, "v1", EMAIL_COLS,
                             (("Delyno", "delyno.dutoit@capetown.gov.za"),),
                             "all planned works that affect Somerset West",
-                            "(inferred_suburbs.astype('str').str.lower().str.contains('somerset\Wwest') or "
-                            " area.astype('str').str.lower().str.contains('somerset\Wwest')) and "
-                            "area_type != 'Citywide'"),
+                            _area_curry_pot('somerset\Wwest')),
+
+    # Ottery
+    ServiceAlertEmailConfig("current", False, "v1", EMAIL_COLS,
+                            (("Shereef", "Mohammed.Maroof@capetown.gov.za"),),
+                            "all unplanned alerts that affect Ottery",
+                            _area_curry_pot('ottery')),
+    ServiceAlertEmailConfig("current", True, "v1", EMAIL_COLS,
+                            (("Shereef", "Mohammed.Maroof@capetown.gov.za"),),
+                            "all planned works that affect Ottery",
+                            _area_curry_pot('ottery')),
+
+    # Muizenberg
+    ServiceAlertEmailConfig("current", False, "v1", EMAIL_COLS,
+                            (("Wim", "wim.louw@capetown.gov.za"),),
+                            "all unplanned alerts that affect Muizenberg",
+                            _area_curry_pot('muizenberg')),
+    ServiceAlertEmailConfig("current", True, "v1", EMAIL_COLS,
+                            (("Wim", "wim.louw@capetown.gov.za"),),
+                            "all unplanned alerts that affect Muizenberg",
+                            _area_curry_pot('muizenberg')),
+
     # Citywide
     ServiceAlertEmailConfig("current", False, "v1", EMAIL_COLS,
                             (("Gordon", "gordon.inggs@capetown.gov.za"),
@@ -683,49 +1433,48 @@ def _form_and_send_alerts_email(alert_dict: typing.Dict[str, typing.Any],
                                 email_filename: str,
                                 recipients: typing.Tuple[typing.Tuple[str, str]],
                                 http_session: requests.Session) -> str:
-    secrets = secrets_utils.get_secrets()
+    email_dict = copy.deepcopy(alert_dict)
 
     with proxy_utils.set_env_http_proxy():
-        account = exchange_utils.setup_exchange_account(secrets["proxy"]["username"],
-                                                        secrets["proxy"]["password"], )
+        account = exchange_utils.setup_exchange_account(exchange_email="data.science@capetown.gov.za")
 
         # Forming email message
-        if alert_dict.get("status", "Open") == "Open":
-            email_subject = f"New Service Alert - {alert_dict['title']} in {alert_dict['area']}"
+        if email_dict.get("status", "Open") == "Open":
+            email_subject = f"New Service Alert - {email_dict['title']} in {email_dict['area']}"
         else:
-            email_subject = f"Updated Service Alert - {alert_dict['title']} in {alert_dict['area']}"
+            email_subject = f"Updated Service Alert - {email_dict['title']} in {email_dict['area']}"
 
         email_request_id = str(uuid.uuid4())
         email_date = pandas.Timestamp.now().isoformat()
-        suggested_post = alert_dict[TWEET_COL]
-        link_str = LINK_TEMPLATE.format(alert_id=alert_dict[ID_COL])
+        suggested_post = email_dict[TWEET_COL]
+        link_str = LINK_TEMPLATE.format(alert_id=email_dict[ID_COL])
         image_link_str = (
-            IMAGE_LINK_TEMPLATE.format(image_filename=alert_dict[FOOTPRINT_COL])
-            if alert_dict[FOOTPRINT_COL] is not None
+            IMAGE_LINK_TEMPLATE.format(image_filename=email_dict[FOOTPRINT_COL])
+            if email_dict[FOOTPRINT_COL] is not None
             else None
         )
 
         # removing null fields and tweet col for email generation
         fields_to_delete = [TWEET_COL, FOOTPRINT_COL, SUMMARY_COL]
-        for k, v in alert_dict.items():
+        for k, v in email_dict.items():
             if not isinstance(v, typing.Collection) and pandas.isna(v):
                 fields_to_delete += [k]
             elif isinstance(v, typing.Collection) and all(map(pandas.isna, v)):
                 fields_to_delete += [k]
 
-        if alert_dict["area_type"] == "Official Planning Suburb":
+        if email_dict["area_type"] == "Official Planning Suburb":
             fields_to_delete += ["inferred_suburbs"]
-        elif alert_dict["area_type"] == "Citywide":
+        elif email_dict["area_type"] == "Citywide":
             fields_to_delete += ["inferred_suburbs", "inferred_wards"]
 
         for k in fields_to_delete:
-            if k in alert_dict:
-                del alert_dict[k]
+            if k in email_dict:
+                del email_dict[k]
 
         # formatting array fields
-        for k, v in alert_dict.items():
+        for k, v in email_dict.items():
             if isinstance(v, typing.Collection) and not isinstance(v, str):
-                alert_dict[k] = ", ".join(v)
+                email_dict[k] = ", ".join(v)
 
         logging.debug(f"{email_subject=}, {email_request_id=}, {email_date=}")
 
@@ -734,7 +1483,7 @@ def _form_and_send_alerts_email(alert_dict: typing.Dict[str, typing.Any],
             message_body = jinja2.Template(template_file.read()).render(
                 email_subject=email_subject,
                 recipients=[name for name, _ in recipients if name],
-                alert_dict=alert_dict,
+                alert_dict=email_dict,
                 post_text=suggested_post,
                 email_focus=email_focus,
                 request_id=email_request_id,
@@ -749,7 +1498,7 @@ def _form_and_send_alerts_email(alert_dict: typing.Dict[str, typing.Any],
                           body=HTMLBody(message_body),
                           subject=email_subject,
                           to_recipients=[email for _, email in recipients],
-                          reply_to=DS_REPLY_TO)
+                          reply_to=DS_REPLY_TO + CRM_REPLY_TO)
         logging.debug(f"{message.to_recipients=}")
         logging.debug(f"{message.subject=}")
 
@@ -777,53 +1526,67 @@ class ServiceAlertEmailer(ServiceAlertBroadcaster):
     def __init__(self, minio_write_name=SA_EMAIL_NAME):
         super().__init__(minio_write_name=minio_write_name)
 
+    def _config_alert_dict_generator(self, comms_preference_value: CommunicationPreference or None = None):
+        for config, (*_, alert_df) in zip(SA_EMAIL_CONFIGS,
+                                          self._service_alerts_generator(SA_EMAIL_CONFIGS)):
+            config_hash = hashlib.sha256(str.encode(str(config.receivers) +
+                                                    str(config.email_focus))).hexdigest()
+            if alert_df.empty:
+                logging.warning(f"Nothing more to do for {config=}, skipping!")
+                continue
+
+            if comms_preference_value and comms_preference_value not in config.comm_channel_preference:
+                logging.warning(f"{comms_preference_value} not in {config.comm_channel_preference=}, skipping!")
+                continue
+
+            alert_df = config.apply_additional_filter(alert_df)
+
+            for alert_dict in alert_df.to_dict(orient="records"):
+                lower_status = alert_dict['status'].lower().replace(" ", "-")
+                yield config_hash, config, alert_dict, lower_status
+
+    def _in_cache(self, *args) -> bool:
+        for mfn in args:
+            logging.debug(f"Checking for {mfn} in cache")
+            for fn in minio_utils.list_objects_in_bucket(self.minio_write_name,
+                                                         minio_prefix_override=mfn):
+                logging.debug(f"{fn} exists!")
+                return True
+
+        return False
+
+    def _update_cache(self, content, filename, prefix_override=None):
+        with tempfile.TemporaryDirectory() as tempdir:
+            local_path = pathlib.Path(tempdir) / filename
+            with open(local_path, "w") as local_file:
+                local_file.write(content)
+
+            minio_utils.file_to_minio(local_path, self.minio_write_name,
+                                      filename_prefix_override=prefix_override)
+
     def send_alert_emails(self):
         with proxy_utils.setup_http_session() as http:
-            for config, (*_, alert_df) in zip(SA_EMAIL_CONFIGS,
-                                              self._service_alerts_generator(SA_EMAIL_CONFIGS)):
-                config_hash = hashlib.sha256(str.encode(str(config.receivers) +
-                                                        str(config.email_focus))).hexdigest()
-                if alert_df.empty:
-                    logging.warning(f"Nothing more to do for {config=}, skipping!")
-                    continue
+            for config_hash, config, alert_dict, lower_status in self._config_alert_dict_generator(
+                    CommunicationPreference.EMAIL):
+                even_more_legacy_email_filename = f"{config_hash}_{alert_dict[ID_COL]}.html"
+                legacy_email_filename = f"{config_hash}_{lower_status}_{alert_dict[ID_COL]}.html"
+                # moving to same filename, but under a hashed prefix
+                email_filename = f"{lower_status}_{alert_dict[ID_COL]}.html"
 
-                alert_df = config.apply_additional_filter(alert_df)
+                if alert_dict[TWEET_COL] is None:
+                    logging.warning(f"Empty post - {alert_dict[ID_COL]}")
 
-                for alert_dict in alert_df.to_dict(orient="records"):
-                    legacy_email_filename = f"{config_hash}_{alert_dict[ID_COL]}.html"
-                    # new form of email filename incorporates the status
-                    lower_status = alert_dict['status'].lower().replace(" ", "-")
-                    email_filename = f"{config_hash}_{lower_status}_{alert_dict[ID_COL]}.html"
-
-                    if alert_dict[TWEET_COL] is None:
-                        logging.warning(f"Empty post - {alert_dict[ID_COL]}")
-
-                    logging.debug("Checking if email has already been sent...")
-                    skip_flag = False
-                    for fn in itertools.chain(
-                            minio_utils.list_objects_in_bucket(self.minio_write_name,
-                                                               minio_prefix_override=email_filename),
-                            minio_utils.list_objects_in_bucket(self.minio_write_name,
-                                                               minio_prefix_override=legacy_email_filename)
-                    ):
-                        logging.warning(f"Skipping {alert_dict[ID_COL]} ({fn}) for this config - already sent!")
-                        skip_flag = True
-                        break
-
-                    if skip_flag:
-                        continue
-
+                logging.debug("Checking if email has already been sent...")
+                if not self._in_cache(even_more_legacy_email_filename, legacy_email_filename,
+                                      f"{config_hash}/{email_filename}"):
+                    logging.debug(f"Sending {alert_dict[ID_COL]}")
                     email_message = _form_and_send_alerts_email(alert_dict, config.email_focus, email_filename,
                                                                 config.receivers,
                                                                 http)
 
                     logging.debug("Backing up email")
-                    with tempfile.TemporaryDirectory() as tempdir:
-                        local_path = pathlib.Path(tempdir) / email_filename
-                        with open(local_path, "w") as local_file:
-                            local_file.write(email_message)
-
-                        minio_utils.file_to_minio(local_path, self.minio_write_name)
+                    self._update_cache(email_message, email_filename,
+                                       prefix_override=config_hash + "/")
 
 
 if __name__ == "__main__":
