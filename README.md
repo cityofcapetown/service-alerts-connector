@@ -110,6 +110,10 @@ Yes, we are in two ways:
 If you're interested, you may inspect the YAML templates for the prompts in [this directory](./src/resources/). We're 
 using vanilla OpenAI (`gpt-4o-mini`) or Meta models (`llama-3.2 8 Billion parameter`), with multishot prompting.
 
+**NB** Gen AI can make mistakes, similarly, the NLP we use to locate alerts in space might fail to do so accurately. We 
+strongly encourage any outputs making use of the `summary`, `geospatial_footprint` and/or `footprint_map` images to 
+include a disclaimer to this effect, along with a link to the underlying service alert fields.
+
 ### Who is using this information?
 * [Unofficial Mastodon Bot](https://botsin.space/@coct_service_alerts) and [its code](https://github.com/cityofcapetown/mastodon-bots)
 * [CCT Data Science Twitter Bot](https://twitter.com/DataOpm) and [its code](https://github.com/cityofcapetown/twitter-bots)
