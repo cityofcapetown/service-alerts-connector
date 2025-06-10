@@ -147,7 +147,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ServiceAlertV1'
-  /v1.1/service-alert/{alert_id}:
+  /v1.1/service-alert/{alertId}:
     get:
       tags:
         - "v1.1"
@@ -164,7 +164,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ServiceAlertV1.1'
-  /v1.2/service-alert/{alert_id}:
+  /v1.2/service-alert/{alertId}:
     get:
       tags:
         - "v1.2"
@@ -181,7 +181,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ServiceAlertV1.2'
-  /v1.3/service-alert/{alert_id}:
+  /v1.3/service-alert/{alertId}:
     get:
       tags:
         - "v1.3"
@@ -214,10 +214,12 @@ paths:
           content:
             image/png:
               schema:
-                type: binary
+                type: string
+                format: binary
 components:
   parameters:
     timeFrame:
+      name: timeFrame
       in: path
       description: Time frame from which select service alerts will be listed.
       schema:
@@ -228,6 +230,7 @@ components:
           - all
       required: true
     planned:
+      name: planned
       in: path
       description: Whether this potential outage was a result of planned maintenance or not.
       schema:
@@ -237,12 +240,14 @@ components:
           - unplanned
       required: true
     alertId:
+      name: alertId
       in: path
       description: ID of the service alert to retrieve
       required: true
       schema:
         type: integer
     footprintId:
+      name: footprintId
       in: path
       description: ID of an area of effect footprint
       required: true
