@@ -108,7 +108,7 @@ Yes, we are in two ways:
 * as part of generating the `geospatial_footprint` field, we use AI to help clean the location information.
 
 If you're interested, you may inspect the YAML templates for the prompts in [this directory](./src/resources/). We're 
-using vanilla OpenAI or Meta models, with multishot prompting.
+using vanilla OpenAI (`gpt-4o-mini`) or Meta models (`llama-3.2 8 Billion parameter`), with multishot prompting.
 
 ### Who is using this information?
 * [Unofficial Mastodon Bot](https://botsin.space/@coct_service_alerts) and [its code](https://github.com/cityofcapetown/mastodon-bots)
