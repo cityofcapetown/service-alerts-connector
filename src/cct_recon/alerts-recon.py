@@ -1,12 +1,9 @@
-import copy
 import json
 
 import boto3
 
 PREV_SUFFIX = ".prev"
-V1_ALERTS_PREFIX = 'alerts/'
-V1_1_ALERTS_PREFIX = 'v1.1/service-alert/'
-V1_2_ALERTS_PREFIX = 'v1.2/service-alert/'
+V1_3_ALERTS_PREFIX = 'v1.3/service-alert/'
 SNS_ARN = "arn:aws:sns:af-south-1:566800947500:service-alerts"
 
 s3 = boto3.client('s3')
@@ -49,34 +46,11 @@ def lambda_handler(event, context):
 
     for service_alert in new_service_alerts:
         print(f"Writing {service_alert['Id']} to S3")
-        # V1 alert
-        v1_service_alert = copy.deepcopy(service_alert)
-        del v1_service_alert['geospatial_footprint']
-        del v1_service_alert['area_type']
-
-        response = s3.put_object(
-            Body=json.dumps(v1_service_alert),
-            Bucket=bucket_name,
-            Key=V1_ALERTS_PREFIX + str(service_alert["Id"]) + ".json",
-            ContentType='application/json'
-        )
-
-        v1_1_service_alert = copy.deepcopy(service_alert)
-        del v1_1_service_alert['status']
-
-        # V1.1 alert
-        response = s3.put_object(
-            Body=json.dumps(v1_1_service_alert),
-            Bucket=bucket_name,
-            Key=V1_1_ALERTS_PREFIX + str(service_alert["Id"]),
-            ContentType='application/json'
-        )
-
-        # V1.2 alert
+        # V1.3 alert
         response = s3.put_object(
             Body=json.dumps(service_alert),
             Bucket=bucket_name,
-            Key=V1_2_ALERTS_PREFIX + str(service_alert["Id"]),
+            Key=V1_3_ALERTS_PREFIX + str(service_alert["Id"]),
             ContentType='application/json'
         )
 

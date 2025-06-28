@@ -66,14 +66,14 @@ def _clean_sa_df(data_df: pd.DataFrame) -> pd.DataFrame:
         "location": lambda df: df.apply(
             lambda row: (
                 # dropping location entry if it overlaps with the description entry
-                row["Address_x0020_Location_x0020_2"] if (
+                row["Address_x0020_Location_x0020_2"].strip() if (
                         row["Address_x0020_Location_x0020_2"] and
                         row["Description12"] and
                         row["Address_x0020_Location_x0020_2"][:len(row["Description12"])] !=
                         row["Description12"][:len(row["Address_x0020_Location_x0020_2"])]
                 ) else
                 # Using controlled address field
-                row["All_x0020_Location_x0020_Selected"] if (
+                row["All_x0020_Location_x0020_Selected"].strip() if (
                     row["All_x0020_Location_x0020_Selected"]
                 ) else None
             ), axis=1

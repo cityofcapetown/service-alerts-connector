@@ -33,7 +33,7 @@ from cct_connector import ServiceAlertBase
 from cct_connector import (
     FIXED_SA_NAME, AUGMENTED_SA_NAME, SERVICE_ALERTS_PREFIX,
     AUGMENTER_SALT,
-    ID_COL, TWEET_COL, TOOT_COL, IMAGE_COL, GEOSPATIAL_COL,
+    ID_COL, TWEET_COL, TOOT_COL, FOOTPRINT_COL, GEOSPATIAL_COL, SUMMARY_COL,
 )
 
 # Internal LLM consts
@@ -81,8 +81,8 @@ AREA_BUFFER = 0.01  # In degrees decimal. At Cape Town's Lat-Long, this is about
 AREA_WEBDRIVER_PATH = "/usr/bin/geckodriver"
 AREA_IMAGE_SALT = "2024-03-20T22:59"
 AREA_IMAGE_BUCKET = f"{SERVICE_ALERTS_PREFIX}.maps"
-AREA_IMAGE_FILENAME_TEMPLATE = "{area_type_str}_{area_str}_{salt_str}.png"
-LOCATION_IMAGE_FILENAME_TEMPLATE = "{area_type_str}_{area_str}_{location_str}_{salt_str}.png"
+AREA_IMAGE_FILENAME_TEMPLATE = "{area_type_str}_{area_str}_{salt_str}"
+LOCATION_IMAGE_FILENAME_TEMPLATE = "{area_type_str}_{area_str}_{location_str}_{salt_str}"
 AREA_IMAGE_DIM = 600
 AREA_IMAGE_DELAY = 5
 AREA_IMAGE_ZOOM = 16
@@ -457,7 +457,7 @@ def _generate_screenshot_of_area(area_gdf: geopandas.GeoDataFrame, area_filename
     with tempfile.TemporaryDirectory() as temp_dir, _get_selenium_driver() as driver:
         driver.set_window_size(AREA_IMAGE_DIM, AREA_IMAGE_DIM)
         # temp_dir = "/home/gordon/snap/firefox/common/tmp"
-        local_image_path = pathlib.Path(temp_dir) / area_filename
+        local_image_path = pathlib.Path(temp_dir) / (area_filename + ".png")
         local_html_path = str(local_image_path).replace(".png", ".html")
         logging.debug(f"Saving map to {local_html_path}")
         m.save(local_html_path)
@@ -490,7 +490,7 @@ def _generate_image_link(area_type: str, area: str, location: str or None, wkt_s
     area_image_filename = template_str.format(**template_params)
 
     if len(area_image_filename) > 32:
-        area_image_filename = hashlib.sha256(area_image_filename.encode()).hexdigest() + ".png"
+        area_image_filename = hashlib.sha256(area_image_filename.encode()).hexdigest()
 
     logging.debug(f"{AREA_IMAGE_SALT=}, {area_type=}, {area=}, {location=}, {area_image_filename=}")
 
@@ -550,12 +550,12 @@ class ServiceAlertAugmenter(ServiceAlertBase.ServiceAlertsBase):
         # guard parameters
         if self.use_cached_values and (
                 # detecting if cache values should be pulled in for back filling
-                (self.cache_data[TWEET_COL].isna().any() or self.cache_data[TOOT_COL].isna().any()) and
+                self.cache_data[SUMMARY_COL].isna().any() and
                 less_than_limit > 0
         ):
             logging.debug(f"Adding {less_than_limit} entries from cache into main data")
             moving_from_cache = self.cache_data.loc[
-                self.cache_data[TWEET_COL].isna() | self.cache_data[TOOT_COL].isna(),
+                self.cache_data[SUMMARY_COL].isna(),
                 self.data.columns
             ].sort_values(by=['publish_date']).tail(less_than_limit * 2).pipe(
                 lambda df: df.sample(min([df.shape[0], less_than_limit]))
@@ -569,7 +569,7 @@ class ServiceAlertAugmenter(ServiceAlertBase.ServiceAlertsBase):
             self.cache_data = self.cache_data.drop(moving_from_cache.index)
             self.old_data = True
 
-    def add_social_media_posts(self, post_size_limit=280, social_media_col=TWEET_COL):
+    def add_summary_field(self, summary_size_limit=280, summary_col=SUMMARY_COL):
         source_data = self.data.copy()
 
         if self.old_data:
@@ -584,8 +584,8 @@ class ServiceAlertAugmenter(ServiceAlertBase.ServiceAlertsBase):
                 (ID_COL, 'InputChecksum',
                  'publish_date', 'effective_date', 'expiry_date',
                  'notification_number',
-                 'area_type', GEOSPATIAL_COL, IMAGE_COL,
-                 TWEET_COL, TOOT_COL,)
+                 'area_type', GEOSPATIAL_COL, FOOTPRINT_COL,
+                 SUMMARY_COL, TWEET_COL, TOOT_COL,)
                 if c in source_data.columns
             ]
         )
@@ -616,19 +616,19 @@ class ServiceAlertAugmenter(ServiceAlertBase.ServiceAlertsBase):
 
                 # ToDo use LLM to summarise any excessively long fields
 
-                resp = _cptgpt_summarise_call_wrapper(record, session, post_size_limit)
+                resp = _cptgpt_summarise_call_wrapper(record, session, summary_size_limit)
 
-                self.data.loc[record_index, social_media_col] = resp
+                self.data.loc[record_index, summary_col] = resp
 
-    def add_social_media_posts_with_hashtags(self, source_col=TWEET_COL, destination_col=TOOT_COL):
-        if source_col in self.data.columns and self.data.loc[self.data[TWEET_COL].notna(), source_col].notna().any():
-            # NB this is a bit of a hack - this sort of thing should be left to the downstream consumer
-            self.data[destination_col] = self.data.loc[self.data[TWEET_COL].notna(), source_col].copy()
+    def add_social_media_posts(self, source_col=SUMMARY_COL, destination_col=TWEET_COL, with_hashtags=False):
+        if source_col in self.data.columns and self.data.loc[self.data[source_col].notna(), source_col].notna().any():
+            self.data[destination_col] = self.data.loc[self.data[source_col].notna(), source_col].copy()
 
-            self.data[destination_col] = (
-                    self.data[destination_col] + "\n" +
-                    self.data["service_area"].map(SERVICE_AREA_HASHTAGS) + " #CapeTown"
-            )
+            if with_hashtags:
+                self.data[destination_col] = (
+                        self.data[destination_col] + "\n" +
+                        self.data["service_area"].map(SERVICE_AREA_HASHTAGS) + " #CapeTown"
+                )
         else:
             logging.warning(f"Skipping because '{source_col}' is not in the data!")
             logging.debug(f"{self.data.columns}")
@@ -644,7 +644,7 @@ class ServiceAlertAugmenter(ServiceAlertBase.ServiceAlertsBase):
             )
 
             if not image_filename_lookup.empty:
-                self.data[IMAGE_COL] = image_filename_lookup
+                self.data[FOOTPRINT_COL] = image_filename_lookup
 
     def infer_area(self, layer_name: str, layer_col: str, data_col_name: str, layer_query: str or None = None):
         if self.data.empty:
@@ -783,12 +783,16 @@ if __name__ == "__main__":
     sa_augmenter = ServiceAlertAugmenter()
     logging.info("...G[ot] data from Minio")
 
+    logging.info("Generat[ing] Summary...")
+    sa_augmenter.add_summary_field()
+    logging.info("...Generat[ed] Summary")
+
     logging.info("Generat[ing] Tweets...")
-    sa_augmenter.add_social_media_posts(280, TWEET_COL)
+    sa_augmenter.add_social_media_posts(destination_col=TWEET_COL)
     logging.info("...Generat[ed] Tweets")
 
     logging.info("Generat[ing] Toots...")
-    sa_augmenter.add_social_media_posts_with_hashtags()
+    sa_augmenter.add_social_media_posts(destination_col=TOOT_COL, with_hashtags=True)
     logging.info("...Generat[ed] Toots")
 
     logging.info("Add[ing] geospatial footprints")
